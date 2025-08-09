@@ -468,21 +468,21 @@ export function SmartTextEditor() {
             
             <Button
               variant="ghost"
-              size="icon"
+              size="icon-sm"
               onClick={resetToOriginal}
               disabled={!originalText || editedText === originalText}
-              className="h-8 w-8"
+              className="touch-target-sm"
               title="Reset to original"
             >
               <RotateCcw className="h-4 w-4" />
             </Button>
-            
+
             <Button
               variant="ghost"
-              size="icon"
+              size="icon-sm"
               onClick={() => setShowExportPanel(true)}
               disabled={!editedText.trim()}
-              className="h-8 w-8"
+              className="touch-target-sm"
               title="Export text"
             >
               <Download className="h-4 w-4" />
@@ -490,56 +490,69 @@ export function SmartTextEditor() {
           </div>
         </div>
 
-        {/* Statistics */}
-        <div className="flex items-center gap-6 mt-3 text-sm bg-card border border-border rounded-lg px-3 py-2">
+        {/* Statistics - Mobile responsive */}
+        <div className="flex flex-wrap items-center gap-3 sm:gap-4 lg:gap-6 mt-3 text-sm bg-card border border-border rounded-lg px-3 py-2">
           <span className="text-foreground">{wordCount} words</span>
-          <span className="text-foreground">{charCount} characters</span>
+          <span className="text-foreground">{charCount} chars</span>
           {originalText && editedText !== originalText && (
-            <span className="text-muted-foreground">• Modified</span>
+            <span className="text-muted-foreground hidden sm:inline">• Modified</span>
           )}
           {ocrResult && (
-            <span className="text-foreground">OCR: {(ocrResult.confidence * 100).toFixed(1)}%</span>
+            <span className="text-foreground text-xs sm:text-sm">
+              OCR: {(ocrResult.confidence * 100).toFixed(1)}%
+            </span>
           )}
         </div>
       </div>
 
-      {/* Main Editor Area */}
+      {/* Main Editor Area - Mobile-first responsive */}
       <div className="flex-1 relative bg-muted/30 overflow-hidden">
         <div
           ref={editorRef}
-          className="h-full p-6"
+          className="h-full p-3 sm:p-4 lg:p-6"
         >
-          <div className="relative h-full bg-card rounded-lg border border-border shadow-sm">
-            {/* Main textarea */}
+          <div className="relative h-full bg-card rounded-lg border border-border shadow-mobile sm:shadow-sm">
+            {/* Main textarea - Mobile optimized */}
             <textarea
               ref={textareaRef}
               value={editedText}
               onChange={(e) => handleTextChange(e.target.value)}
               onClick={handleTextClick}
               placeholder={
-                ocrResult 
-                  ? "Edit the extracted text here. Grammar suggestions will appear as you type..." 
+                ocrResult
+                  ? "Edit the extracted text here. Grammar suggestions will appear as you type..."
                   : "Start typing or process an image with OCR. Grammar checking happens automatically..."
               }
-              className={`w-full h-full resize-none border-0 bg-transparent p-6 text-base leading-relaxed font-mono focus:outline-none focus:ring-0 relative z-10 rounded-lg ${
-                grammarResult?.errors.length
+              className={`
+                w-full h-full resize-none border-0 bg-transparent rounded-lg
+                p-3 sm:p-4 lg:p-6
+                text-base sm:text-base lg:text-base leading-relaxed
+                font-mono focus:outline-none focus:ring-0 relative z-10
+                touch-manipulation
+                ${grammarResult?.errors.length
                   ? 'text-foreground/10 dark:text-foreground/10'
                   : 'text-foreground'
-              }`}
+                }
+              `}
             />
             
-            {/* Optimized overlay with highlighted text */}
+            {/* Optimized overlay with highlighted text - Mobile responsive */}
             {grammarResult?.errors && grammarResult.errors.length > 0 && (
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.2 }}
-                className="absolute inset-0 p-6 pointer-events-auto text-base leading-relaxed font-mono whitespace-pre-wrap break-words overflow-auto rounded-lg will-change-contents"
+                className="
+                  absolute inset-0 pointer-events-auto text-base leading-relaxed
+                  font-mono whitespace-pre-wrap break-words overflow-auto rounded-lg
+                  will-change-contents mobile-scroll
+                  p-3 sm:p-4 lg:p-6
+                "
                 style={{
-                  top: '1.5rem',
-                  left: '1.5rem',
-                  right: '1.5rem', 
-                  bottom: '1.5rem',
+                  top: '0.75rem',
+                  left: '0.75rem',
+                  right: '0.75rem',
+                  bottom: '0.75rem',
                   zIndex: 5,
                   backfaceVisibility: 'hidden',
                   transform: 'translateZ(0)' // Force GPU acceleration

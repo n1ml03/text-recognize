@@ -157,24 +157,24 @@ export function OCRPanel() {
                 <Settings className="h-3 w-3" />
                 Image Preprocessing
               </h4>
-              <div className="grid gap-3">
-                <label className="flex items-center gap-3 cursor-pointer p-2 rounded hover:bg-muted/20 transition-colors">
-                  <Checkbox 
+              <div className="grid gap-2 sm:gap-3">
+                <label className="flex items-center gap-3 cursor-pointer p-2 rounded hover:bg-muted/20 transition-colors touch-target">
+                  <Checkbox
                     checked={preprocessingOptions.enhance_contrast}
                     onCheckedChange={(checked) => updatePreprocessingOption('enhance_contrast', checked)}
                   />
-                  <div className="flex flex-col flex-1">
+                  <div className="flex flex-col flex-1 min-w-0">
                     <span className="text-sm font-medium">Enhance Contrast</span>
                     <span className="text-xs text-muted-foreground">Improve text visibility</span>
                   </div>
                 </label>
-                
-                <label className="flex items-center gap-3 cursor-pointer p-2 rounded hover:bg-muted/20 transition-colors">
-                  <Checkbox 
+
+                <label className="flex items-center gap-3 cursor-pointer p-2 rounded hover:bg-muted/20 transition-colors touch-target">
+                  <Checkbox
                     checked={preprocessingOptions.denoise}
                     onCheckedChange={(checked) => updatePreprocessingOption('denoise', checked)}
                   />
-                  <div className="flex flex-col flex-1">
+                  <div className="flex flex-col flex-1 min-w-0">
                     <span className="text-sm font-medium">Noise Reduction</span>
                     <span className="text-xs text-muted-foreground">Remove image artifacts</span>
                   </div>
@@ -195,23 +195,23 @@ export function OCRPanel() {
           )}
         </AnimatePresence>
 
-        {/* Process Button */}
+        {/* Process Button - Mobile optimized */}
         <Button
           onClick={handleProcessOCR}
           disabled={!currentFile || isProcessingOCR}
-          className="w-full relative overflow-hidden group"
-          size="lg"
+          className="w-full relative overflow-hidden group touch-target"
+          size="xl"
         >
           <div className="flex items-center justify-center">
             {isProcessingOCR ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                <span>Extracting text...</span>
+                <span className="text-sm sm:text-base">Extracting text...</span>
               </>
             ) : (
               <>
                 <Eye className="h-4 w-4 mr-2 transition-transform group-hover:scale-110" />
-                <span>
+                <span className="text-sm sm:text-base">
                   {!currentFile ? 'Select File First' : 'Extract Text'}
                 </span>
               </>

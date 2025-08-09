@@ -35,7 +35,7 @@ function App() {
   }, [initializeApp]);
 
   return (
-    <div className="h-screen bg-background text-foreground overflow-hidden">
+    <div className="h-screen bg-background text-foreground overflow-hidden safe-area-inset">
       <MainLayout />
     </div>
   );

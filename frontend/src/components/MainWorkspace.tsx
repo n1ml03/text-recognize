@@ -56,20 +56,26 @@ export function MainWorkspace({ currentView, showSettings, onSettingsClose }: Ma
 
 function MainView() {
   return (
-    <div className="h-full flex flex-col lg:flex-row">
-      {/* Sidebar - Compact OCR & Upload Controls */}
-      <div className="lg:w-80 xl:w-96 border-r border-border bg-muted/30 flex flex-col">
-        <div className="p-4 space-y-4 overflow-y-auto">
+    <div className="h-full flex flex-col lg:flex-row mobile-container">
+      {/* Mobile-first: Controls panel stacks on top */}
+      <div className="
+        w-full lg:w-80 xl:w-96
+        border-b lg:border-b-0 lg:border-r border-border
+        bg-muted/30 flex flex-col
+        max-h-[40vh] lg:max-h-none
+        overflow-hidden
+      ">
+        <div className="p-3 sm:p-4 space-y-3 sm:space-y-4 overflow-y-auto mobile-scroll">
           {/* File Upload Area */}
           <FileUploadArea />
-          
+
           {/* OCR Panel */}
           <OCRPanel />
         </div>
       </div>
-      
-      {/* Main Editor - Full Focus */}
-      <div className="flex-1 min-w-0">
+
+      {/* Main Editor - Responsive layout */}
+      <div className="flex-1 min-w-0 min-h-0">
         <SmartTextEditor />
       </div>
     </div>
@@ -78,7 +84,7 @@ function MainView() {
 
 function BatchView() {
   return (
-    <div className="h-full p-6">
+    <div className="h-full p-3 sm:p-4 lg:p-6 mobile-container">
       <BatchProcessingPanel />
     </div>
   );
@@ -86,7 +92,7 @@ function BatchView() {
 
 function HistoryView() {
   return (
-    <div className="p-6">
+    <div className="p-3 sm:p-4 lg:p-6 mobile-container">
       <ExportHistoryPanel />
     </div>
   );

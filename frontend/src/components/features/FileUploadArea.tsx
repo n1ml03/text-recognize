@@ -179,10 +179,11 @@ export function FileUploadArea() {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 className={`
-                  border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors
+                  border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors
+                  p-4 sm:p-6 lg:p-8
                   ${isDragActive
                     ? 'border-primary bg-primary/5'
-                    : 'border-muted-foreground/25 hover:border-primary/50'
+                    : 'border-muted-foreground/25 hover:border-primary/50 active:border-primary/70'
                   }
                 `}
                 onClick={openFilePicker}
@@ -192,19 +193,20 @@ export function FileUploadArea() {
                 animate={{ scale: isDragActive ? 1.05 : 1 }}
                 transition={{ type: "spring", stiffness: 300, damping: 20 }}
               >
-                <Upload className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                <h3 className="text-lg font-medium mb-2">
+                <Upload className="h-8 w-8 sm:h-10 sm:w-10 lg:h-12 lg:w-12 mx-auto mb-3 sm:mb-4 text-muted-foreground" />
+                <h3 className="text-base sm:text-lg font-medium mb-2">
                   {isDragActive ? 'Drop file here' : 'Upload File for Processing'}
                 </h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  {universalFileApi.isWebEnvironment() 
+                <p className="text-sm text-muted-foreground mb-3 sm:mb-4 leading-relaxed">
+                  {universalFileApi.isWebEnvironment()
                     ? 'Drag and drop a file here, or click to browse'
                     : 'Click to browse for files'
                   }
                 </p>
-                <Button 
-                  variant="outline" 
-                  className="mb-4" 
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="mb-3 sm:mb-4 touch-target w-full sm:w-auto"
                   onClick={(e) => {
                     e.stopPropagation();
                     openFilePicker();
@@ -223,22 +225,24 @@ export function FileUploadArea() {
               exit={{ opacity: 0, y: -20 }}
               className="space-y-4"
             >
-              <div className="flex items-start justify-between">
-                <div className="flex items-start gap-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-3 min-w-0 flex-1">
                   {getFileIcon(currentFile.file_type)}
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-medium truncate">{currentFile.name}</h3>
-                    <p className="text-sm text-muted-foreground">
-                      {formatFileSize(currentFile.size)} • {currentFile.file_type}
+                    <h3 className="font-medium truncate text-sm sm:text-base">{currentFile.name}</h3>
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                      <p className="text-sm text-muted-foreground">
+                        {formatFileSize(currentFile.size)} • {currentFile.file_type}
+                      </p>
                       {isWebFile && (
-                        <span className="ml-2 inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400">
+                        <span className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400">
                           <Globe className="h-3 w-3" />
                           Web File
                         </span>
                       )}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {currentFile.last_modified && currentFile.last_modified !== 'Unknown' 
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {currentFile.last_modified && currentFile.last_modified !== 'Unknown'
                         ? `Modified: ${new Date(currentFile.last_modified).toLocaleDateString()}`
                         : 'File ready for processing'
                       }
@@ -247,9 +251,10 @@ export function FileUploadArea() {
                 </div>
                 <Button
                   variant="ghost"
-                  size="icon"
+                  size="icon-sm"
                   onClick={clearFile}
-                  className="h-8 w-8"
+                  className="text-muted-foreground hover:text-destructive touch-target-sm flex-shrink-0"
+                  title="Remove file"
                 >
                   <X className="h-4 w-4" />
                 </Button>

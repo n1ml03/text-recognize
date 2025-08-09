@@ -12,7 +12,8 @@ import {
   Layers,
   Keyboard,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Menu
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -24,6 +25,11 @@ export function MainLayout() {
   const { theme, setTheme, currentView, setCurrentView, error, setError } = useUIState();
   const [showSettings, setShowSettings] = useState(false);
   const [showKeyboardHelp, setShowKeyboardHelp] = useState(false);
+
+  // Mobile-first responsive state
+  const [isMobile, setIsMobile] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Setup keyboard shortcuts
   const shortcuts: KeyboardShortcut[] = [
@@ -41,6 +47,7 @@ export function MainLayout() {
         setShowSettings(false);
         setShowKeyboardHelp(false);
         setError(null);
+        setMobileMenuOpen(false);
       },
       description: 'Close dialogs',
       category: 'UI',
@@ -48,7 +55,21 @@ export function MainLayout() {
   ];
 
   useKeyboardShortcuts(shortcuts);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  // Mobile detection and responsive behavior
+  useEffect(() => {
+    const checkMobile = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      if (mobile) {
+        setSidebarCollapsed(true);
+      }
+    };
+
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Initialize theme on component mount
   useEffect(() => {
@@ -128,40 +149,74 @@ export function MainLayout() {
   ];
 
   return (
-    <div className="flex h-full bg-background">
-      {/* Enhanced Sidebar */}
+    <div className="flex h-full bg-background relative">
+      {/* Mobile Menu Overlay */}
+      <AnimatePresence>
+        {isMobile && mobileMenuOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-background/80 backdrop-blur-sm z-40 md:hidden"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Enhanced Sidebar - Mobile-first responsive */}
       <motion.aside
         initial={false}
-        animate={{ width: sidebarCollapsed ? 72 : 250 }}
-        className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-r border-border flex flex-col"
+        animate={{
+          width: isMobile
+            ? (mobileMenuOpen ? 280 : 0)
+            : (sidebarCollapsed ? 72 : 250),
+          x: isMobile && !mobileMenuOpen ? -280 : 0
+        }}
+        className={`
+          bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60
+          border-r border-border flex flex-col
+          ${isMobile ? 'fixed left-0 top-0 h-full z-50 shadow-mobile-lg' : 'relative'}
+          ${isMobile && !mobileMenuOpen ? 'pointer-events-none' : ''}
+        `}
       >
-        {/* Brand Header - Fixed height with consistent py-4.25 */}
-        <div className="px-4 py-[1.0625rem] border-b border-border/50 bg-card/50">
-          <div className="flex items-center justify-between h-8">
-            {!sidebarCollapsed && (
-              <motion.div
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 2, x: 0 }}
-                className="flex items-center gap-3"
-              >
-                {/* Brand content can be added here */}
-              </motion.div>
+        {/* Brand Header - Mobile-first responsive */}
+        <div className="border-b border-border/50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 safe-area-inset-top">
+          <div className={`flex items-center py-2 bg-card/50 min-h-[4rem] ${
+            sidebarCollapsed && !isMobile ? 'justify-center px-2' : 'justify-between px-4 sm:px-6'
+          }`}>
+            {/* Brand/Logo section - only show when expanded */}
+            {!sidebarCollapsed && !isMobile && (
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div className="w-2 h-6 sm:h-8 bg-gradient-to-b from-primary to-primary/50 rounded-full flex-shrink-0"></div>
+                <div className="min-w-0">
+                  <h2 className="text-base font-semibold truncate">Text Recognize</h2>
+                </div>
+              </div>
             )}
-            
+
+            {/* Close button for mobile, collapse button for desktop */}
             <Button
               variant="ghost"
-              size="icon"
-              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-              className={`hover:bg-muted transition-colors ${
-                sidebarCollapsed 
-                  ? 'h-6 w-6 mx-auto' 
-                  : 'h-7 w-7 ml-auto'
+              size={isMobile ? "default" : "icon"}
+              onClick={() => {
+                if (isMobile) {
+                  setMobileMenuOpen(false);
+                } else {
+                  setSidebarCollapsed(!sidebarCollapsed);
+                }
+              }}
+              className={`hover:bg-muted transition-colors touch-target ${
+                isMobile
+                  ? 'ml-auto'
+                  : 'h-8 w-8'
               }`}
             >
-              {sidebarCollapsed ? (
+              {isMobile ? (
+                <X className="h-4 w-4" />
+              ) : sidebarCollapsed ? (
                 <ChevronRight className="h-4 w-4" />
               ) : (
-                <ChevronLeft className="h-3.5 w-3.5" />
+                <ChevronLeft className="h-4 w-4" />
               )}
             </Button>
           </div>
@@ -281,19 +336,32 @@ export function MainLayout() {
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col overflow-hidden">
-        {/* Header - Match sidebar design */}
-        <div className="border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-          <div className="flex items-center justify-between px-6 py-3 bg-card/30">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-3">
-                <div className="w-2 h-8 bg-gradient-to-b from-primary to-primary/50 rounded-full"></div>
-                <div>
-                  <h2 className="text-lg font-semibold">
+        {/* Header - Mobile-first responsive */}
+        <div className="border-b border-border/50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 safe-area-inset-top">
+          <div className="flex items-center justify-between px-4 sm:px-6 py-2 bg-card/50 min-h-[4rem]">
+            <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
+              {/* Mobile menu button */}
+              {isMobile && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setMobileMenuOpen(true)}
+                  className="touch-target hover:bg-muted md:hidden"
+                  title="Open menu"
+                >
+                  <Menu className="h-5 w-5" />
+                </Button>
+              )}
+
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-2 h-6 sm:h-8 bg-gradient-to-b from-primary to-primary/50 rounded-full flex-shrink-0"></div>
+                <div className="min-w-0">
+                  <h2 className="text-base sm:text-lg font-semibold truncate">
                     {currentView === 'main' && 'OCR & Grammar Assistant'}
                     {currentView === 'batch' && 'Batch Processing'}
                     {currentView === 'history' && 'Export History'}
                   </h2>
-                  <p className="text-xs text-muted-foreground -mt-0.5">
+                  <p className="text-xs text-muted-foreground -mt-0.5 hidden sm:block">
                     {currentView === 'main' && 'Process and analyze text from images and documents'}
                     {currentView === 'batch' && 'Process multiple files simultaneously'}
                     {currentView === 'history' && 'View and manage exported results'}
@@ -302,24 +370,30 @@ export function MainLayout() {
               </div>
             </div>
 
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 sm:gap-2">
               <Button
                 variant="ghost"
-                size="icon"
+                size={isMobile ? "default" : "icon"}
                 onClick={() => setShowKeyboardHelp(true)}
-                className="h-8 w-8 hover:bg-muted"
+                className={`hover:bg-muted transition-colors ${
+                  isMobile ? 'touch-target hidden xs:flex' : 'h-8 w-8'
+                }`}
                 title="Keyboard Shortcuts (F1)"
               >
                 <Keyboard className="h-4 w-4" />
+                {isMobile && <span className="ml-2 text-sm">Help</span>}
               </Button>
               <Button
                 variant="ghost"
-                size="icon"
+                size={isMobile ? "default" : "icon"}
                 onClick={() => setShowSettings(true)}
-                className="h-8 w-8 hover:bg-muted"
+                className={`hover:bg-muted transition-colors ${
+                  isMobile ? 'touch-target' : 'h-8 w-8'
+                }`}
                 title="Settings (Ctrl+,)"
               >
                 <Settings className="h-4 w-4" />
+                {isMobile && <span className="ml-2 text-sm">Settings</span>}
               </Button>
             </div>
           </div>
