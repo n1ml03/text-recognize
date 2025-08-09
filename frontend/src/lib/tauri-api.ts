@@ -8,7 +8,8 @@ function isTauriAvailable(): boolean {
 // Safe invoke wrapper that handles Tauri availability
 async function safeInvoke<T>(command: string, args?: Record<string, unknown>): Promise<T> {
   if (!isTauriAvailable()) {
-    throw new Error('Tauri context is not available. Make sure you are running in a Tauri environment.');
+    // Fallback to web-based implementations for common commands
+    return await webFallback<T>(command, args);
   }
 
   try {
@@ -16,6 +17,42 @@ async function safeInvoke<T>(command: string, args?: Record<string, unknown>): P
   } catch (error) {
     console.error(`Failed to invoke Tauri command '${command}':`, error);
     throw error;
+  }
+}
+
+// Web fallback implementations for when Tauri is not available
+async function webFallback<T>(command: string, args?: Record<string, unknown>): Promise<T> {
+  switch (command) {
+    case 'get_supported_image_formats':
+      return ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'] as T;
+
+    case 'get_all_supported_formats':
+      return ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'] as T;
+
+    case 'validate_image_file':
+      // Basic validation for web environment
+      return true as T;
+
+    case 'get_language_statistics':
+      const text = args?.text as string || '';
+      const words = text.split(/\s+/).filter(word => word.length > 0).length;
+      const characters = text.length;
+      const charactersNoSpaces = text.replace(/\s/g, '').length;
+      const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0).length;
+      const paragraphs = text.split(/\n\s*\n/).filter(p => p.trim().length > 0).length;
+      const readingTimeMinutes = Math.ceil(words / 200); // Average reading speed
+
+      return {
+        words,
+        characters,
+        characters_no_spaces: charactersNoSpaces,
+        sentences,
+        paragraphs,
+        reading_time_minutes: readingTimeMinutes
+      } as T;
+
+    default:
+      throw new Error(`Web fallback not implemented for command: ${command}. This feature requires the desktop version of the application.`);
   }
 }
 

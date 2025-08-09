@@ -1,0 +1,13 @@
+{
+  "name": "text-recognize-web",
+  "version": "1.0.0",
+  "description": "OCR & Grammar Assistant - Web Version",
+  "scripts": {
+    "build": "cd frontend && bun run build",
+    "dev": "cd frontend && bun run dev",
+    "preview": "cd frontend && bun run preview"
+  },
+  "workspaces": [
+    "frontend"
+  ]
+}

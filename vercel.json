@@ -1,0 +1,14 @@
+{
+  "buildCommand": "cd frontend && bun run build",
+  "outputDirectory": "frontend/dist",
+  "installCommand": "cd frontend && bun install",
+  "routes": [
+    {
+      "handle": "filesystem"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ]
+}
