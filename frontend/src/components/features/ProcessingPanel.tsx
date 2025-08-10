@@ -111,20 +111,15 @@ export function ProcessingPanel() {
     setError(null);
 
     try {
-      const result = await streamlinedProcessor.processFile(currentFile, {
+      const ocrResultData = await streamlinedProcessor.processFileForUI(currentFile, {
         ocr_options: preprocessingOptions,
       });
 
-      const ocrResultData = {
-        text: result.text,
-        confidence: result.confidence || 0.9,
-        engine_used: result.engine_used,
-        processing_time: result.processing_time / 1000,
-        word_details: result.word_details || [],
-      };
+      // Adjust processing time to seconds for display
+      ocrResultData.processing_time = ocrResultData.processing_time / 1000;
 
       setOCRResult(ocrResultData);
-      setOriginalText(result.text);
+      setOriginalText(ocrResultData.text);
     } catch (error) {
       console.error('Text extraction failed:', error);
       let errorMessage = error instanceof Error ? error.message : 'Text extraction failed';
