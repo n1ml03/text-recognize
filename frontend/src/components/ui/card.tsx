@@ -1,20 +1,67 @@
 import * as React from "react"
+import { motion } from "framer-motion"
 import { cn } from "@/lib/utils"
 
-const Card = React.forwardRef<
-  HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement>
->(({ className, ...props }, ref) => (
-  <div
-    ref={ref}
-    className={cn(
-      "rounded-lg border bg-card text-card-foreground shadow-mobile sm:shadow-sm",
-      "transition-shadow duration-200 hover:shadow-mobile-lg sm:hover:shadow-md",
-      className
-    )}
-    {...props}
-  />
-))
+interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
+  hover?: boolean
+  interactive?: boolean
+  variant?: 'default' | 'elevated' | 'outlined' | 'ghost'
+}
+
+const Card = React.forwardRef<HTMLDivElement, CardProps>(
+  ({ className, hover = true, interactive = false, variant = 'default', ...props }, ref) => {
+    const getVariantClasses = () => {
+      switch (variant) {
+        case 'elevated':
+          return "shadow-lg border-0 bg-card/95 backdrop-blur-sm"
+        case 'outlined':
+          return "border-2 border-border bg-transparent shadow-none"
+        case 'ghost':
+          return "border-0 bg-muted/30 shadow-none"
+        default:
+          return "border bg-card shadow-mobile sm:shadow-sm"
+      }
+    }
+
+    const cardContent = (
+      <div
+        ref={ref}
+        className={cn(
+          "rounded-lg text-card-foreground",
+          getVariantClasses(),
+          hover && "transition-all duration-200",
+          hover && variant === 'default' && "hover:shadow-mobile-lg sm:hover:shadow-md",
+          hover && variant === 'elevated' && "hover:shadow-xl hover:shadow-primary/5",
+          hover && variant === 'outlined' && "hover:border-primary/50 hover:bg-accent/5",
+          hover && variant === 'ghost' && "hover:bg-muted/50",
+          interactive && "cursor-pointer",
+          className
+        )}
+        {...props}
+      />
+    )
+
+    if (interactive) {
+      return (
+        <motion.div
+          whileHover={{
+            y: -2,
+            transition: { type: "spring", stiffness: 300, damping: 25 }
+          }}
+          whileTap={{
+            scale: 0.98,
+            transition: { type: "spring", stiffness: 400, damping: 25 }
+          }}
+          className="inline-block w-full"
+        >
+          {cardContent}
+        </motion.div>
+      )
+    }
+
+    return cardContent
+  }
+)
 Card.displayName = "Card"
 
 const CardHeader = React.forwardRef<

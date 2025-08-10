@@ -1,4 +1,6 @@
-use anyhow::{Result, anyhow};
+use crate::error::{AppResult, AppError, ErrorCode};
+use crate::utils::text_processing;
+
 use csv::Writer;
 use serde::{Deserialize, Serialize};
 use std::fs::OpenOptions;
@@ -55,7 +57,7 @@ impl CSVExporterService {
         file_path: &str,
         record: &ExportRecord,
         options: Option<ExportOptions>,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         let opts = options.unwrap_or_default();
         
         // Check if file exists
@@ -68,14 +70,22 @@ impl CSVExporterService {
                 .create(true)
                 .append(true)
                 .open(file_path)
-                .map_err(|e| anyhow!("Failed to open file for appending: {}", e))?
+                .map_err(|e| AppError::with_details(
+                    ErrorCode::CsvExport,
+                    "Failed to open file for appending",
+                    e.to_string()
+                ))?
         } else {
             OpenOptions::new()
                 .create(true)
                 .write(true)
                 .truncate(true)
                 .open(file_path)
-                .map_err(|e| anyhow!("Failed to create/open file: {}", e))?
+                .map_err(|e| AppError::with_details(
+                    ErrorCode::CsvExport,
+                    "Failed to create/open file",
+                    e.to_string()
+                ))?
         };
 
         let mut writer = Writer::from_writer(file);
@@ -96,8 +106,8 @@ impl CSVExporterService {
         }
 
         // Clean and prepare record data
-        let clean_original = Self::clean_text_for_csv(&record.original_text, opts.max_text_length);
-        let clean_corrected = Self::clean_text_for_csv(&record.corrected_text, opts.max_text_length);
+        let clean_original = text_processing::clean_for_csv(&record.original_text, opts.max_text_length);
+        let clean_corrected = text_processing::clean_for_csv(&record.corrected_text, opts.max_text_length);
         let clean_error_summary = Self::clean_text_for_csv(&record.error_summary, opts.max_text_length);
 
         // Write data record
@@ -123,7 +133,7 @@ impl CSVExporterService {
         file_path: &str,
         records: &[ExportRecord],
         options: Option<ExportOptions>,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         let opts = options.unwrap_or_default();
         
         if records.is_empty() {
@@ -140,14 +150,22 @@ impl CSVExporterService {
                 .create(true)
                 .append(true)
                 .open(file_path)
-                .map_err(|e| anyhow!("Failed to open file for appending: {}", e))?
+                .map_err(|e| AppError::with_details(
+                    ErrorCode::CsvExport,
+                    "Failed to open file for appending",
+                    e.to_string()
+                ))?
         } else {
             OpenOptions::new()
                 .create(true)
                 .write(true)
                 .truncate(true)
                 .open(file_path)
-                .map_err(|e| anyhow!("Failed to create/open file: {}", e))?
+                .map_err(|e| AppError::with_details(
+                    ErrorCode::CsvExport,
+                    "Failed to create/open file",
+                    e.to_string()
+                ))?
         };
 
         let mut writer = Writer::from_writer(file);
@@ -192,13 +210,20 @@ impl CSVExporterService {
         Ok(())
     }
 
-    pub fn read_csv_file(file_path: &str) -> Result<Vec<ExportRecord>> {
+    pub fn read_csv_file(file_path: &str) -> AppResult<Vec<ExportRecord>> {
         if !Path::new(file_path).exists() {
-            return Err(anyhow!("CSV file does not exist: {}", file_path));
+            return Err(AppError::new(
+                ErrorCode::FileNotFound,
+                format!("CSV file does not exist: {}", file_path)
+            ));
         }
 
         let mut reader = csv::Reader::from_path(file_path)
-            .map_err(|e| anyhow!("Failed to open CSV file: {}", e))?;
+            .map_err(|e| AppError::with_details(
+                ErrorCode::CsvImport,
+                "Failed to open CSV file",
+                e.to_string()
+            ))?;
 
         let mut records = Vec::new();
 
@@ -219,9 +244,12 @@ impl CSVExporterService {
         Ok(records)
     }
 
-    pub fn get_export_statistics(file_path: &str) -> Result<ExportStatistics> {
+    pub fn get_export_statistics(file_path: &str) -> AppResult<ExportStatistics> {
         if !Path::new(file_path).exists() {
-            return Err(anyhow!("CSV file does not exist: {}", file_path));
+            return Err(AppError::new(
+                ErrorCode::FileNotFound,
+                format!("CSV file does not exist: {}", file_path)
+            ));
         }
 
         let records = Self::read_csv_file(file_path)?;
@@ -263,16 +291,23 @@ impl CSVExporterService {
         })
     }
 
-    pub fn create_backup(file_path: &str) -> Result<String> {
+    pub fn create_backup(file_path: &str) -> AppResult<String> {
         if !Path::new(file_path).exists() {
-            return Err(anyhow!("File does not exist: {}", file_path));
+            return Err(AppError::new(
+                ErrorCode::FileNotFound,
+                format!("File does not exist: {}", file_path)
+            ));
         }
 
         let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
         let backup_path = format!("{}.backup_{}", file_path, timestamp);
 
         std::fs::copy(file_path, &backup_path)
-            .map_err(|e| anyhow!("Failed to create backup: {}", e))?;
+            .map_err(|e| AppError::with_details(
+                ErrorCode::CsvExport,
+                "Failed to create backup",
+                e.to_string()
+            ))?;
 
         log::info!("Created backup: {}", backup_path);
         Ok(backup_path)
@@ -303,21 +338,33 @@ impl CSVExporterService {
         }
     }
 
-    pub fn validate_export_data(record: &ExportRecord) -> Result<()> {
+    pub fn validate_export_data(record: &ExportRecord) -> AppResult<()> {
         if record.original_text.is_empty() && record.corrected_text.is_empty() {
-            return Err(anyhow!("Both original and corrected text cannot be empty"));
+            return Err(AppError::new(
+                ErrorCode::DataValidation,
+                "Both original and corrected text cannot be empty"
+            ));
         }
 
         if record.timestamp.is_empty() {
-            return Err(anyhow!("Timestamp cannot be empty"));
+            return Err(AppError::new(
+                ErrorCode::DataValidation,
+                "Timestamp cannot be empty"
+            ));
         }
 
         if record.ocr_confidence < 0.0 || record.ocr_confidence > 1.0 {
-            return Err(anyhow!("OCR confidence must be between 0.0 and 1.0"));
+            return Err(AppError::new(
+                ErrorCode::DataValidation,
+                "OCR confidence must be between 0.0 and 1.0"
+            ));
         }
 
         if record.processing_time < 0.0 {
-            return Err(anyhow!("Processing time cannot be negative"));
+            return Err(AppError::new(
+                ErrorCode::DataValidation,
+                "Processing time cannot be negative"
+            ));
         }
 
         Ok(())

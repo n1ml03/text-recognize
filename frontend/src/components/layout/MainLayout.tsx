@@ -169,7 +169,7 @@ export function MainLayout() {
         animate={{
           width: isMobile
             ? (mobileMenuOpen ? 280 : 0)
-            : (sidebarCollapsed ? 72 : 250),
+            : (sidebarCollapsed ? 72 : 220),
           x: isMobile && !mobileMenuOpen ? -280 : 0
         }}
         className={`
@@ -187,7 +187,6 @@ export function MainLayout() {
             {/* Brand/Logo section - only show when expanded */}
             {!sidebarCollapsed && !isMobile && (
               <div className="flex items-center gap-3 min-w-0 flex-1">
-                <div className="w-2 h-6 sm:h-8 bg-gradient-to-b from-primary to-primary/50 rounded-full flex-shrink-0"></div>
                 <div className="min-w-0">
                   <h2 className="text-base font-semibold truncate">Text Recognize</h2>
                 </div>
@@ -354,7 +353,6 @@ export function MainLayout() {
               )}
 
               <div className="flex items-center gap-3 min-w-0">
-                <div className="w-2 h-6 sm:h-8 bg-gradient-to-b from-primary to-primary/50 rounded-full flex-shrink-0"></div>
                 <div className="min-w-0">
                   <h2 className="text-base sm:text-lg font-semibold truncate">
                     {currentView === 'main' && 'OCR & Grammar Assistant'}

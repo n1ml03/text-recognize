@@ -4,8 +4,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Upload, File, Image, Video, FileText, X, Info, Globe, Monitor } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { UploadIcon, SuccessIcon } from '@/components/ui/animated-icons';
 import { useFileState, useAppStore } from '@/store/app-store';
 import { universalFileApi } from '@/lib/universal-file-api';
+import { useAnimationConfig } from '@/hooks/useReducedMotion';
+import { scaleIn } from '@/lib/micro-interactions';
 
 export function FileUploadArea() {
   const {
@@ -15,6 +18,8 @@ export function FileUploadArea() {
   const { setError } = useAppStore();
   const [isDragActive, setIsDragActive] = useState(false);
   const [isWebFile, setIsWebFile] = useState(false);
+  const [uploadSuccess, setUploadSuccess] = useState(false);
+  const { shouldAnimate } = useAnimationConfig();
 
   // Universal file handling for both desktop and web
   const handleFileSelect = useCallback(async (fileInput: string | File) => {
@@ -51,6 +56,10 @@ export function FileUploadArea() {
       
       setCurrentFile(fileInfo);
       setError(null);
+
+      // Show success animation
+      setUploadSuccess(true);
+      setTimeout(() => setUploadSuccess(false), 2000);
     } catch (error) {
       console.error('Error selecting file:', error);
       setError('Failed to load file information');
@@ -191,12 +200,37 @@ export function FileUploadArea() {
               <input {...getInputProps()} />
               <motion.div
                 animate={{ scale: isDragActive ? 1.05 : 1 }}
-                transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                transition={shouldAnimate ? { type: "spring", stiffness: 300, damping: 20 } : { duration: 0.01 }}
               >
-                <Upload className="h-8 w-8 sm:h-10 sm:w-10 lg:h-12 lg:w-12 mx-auto mb-3 sm:mb-4 text-muted-foreground" />
-                <h3 className="text-base sm:text-lg font-medium mb-2">
+                {/* Success state */}
+                <AnimatePresence>
+                  {uploadSuccess && (
+                    <motion.div
+                      variants={scaleIn}
+                      initial="initial"
+                      animate="animate"
+                      exit="exit"
+                      className="absolute inset-0 flex items-center justify-center bg-green-50 dark:bg-green-950 rounded-lg"
+                    >
+                      <div className="text-center">
+                        <SuccessIcon size={48} className="mx-auto mb-2" />
+                        <p className="text-green-600 dark:text-green-400 font-medium">File uploaded successfully!</p>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                <UploadIcon
+                  className="mx-auto mb-3 sm:mb-4 text-muted-foreground"
+                  size={isDragActive ? 56 : 48}
+                />
+                <motion.h3
+                  className="text-base sm:text-lg font-medium mb-2"
+                  animate={{ color: isDragActive ? "hsl(var(--primary))" : "hsl(var(--foreground))" }}
+                  transition={{ duration: shouldAnimate ? 0.2 : 0.01 }}
+                >
                   {isDragActive ? 'Drop file here' : 'Upload File for Processing'}
-                </h3>
+                </motion.h3>
                 <p className="text-sm text-muted-foreground mb-3 sm:mb-4 leading-relaxed">
                   {universalFileApi.isWebEnvironment()
                     ? 'Drag and drop a file here, or click to browse'

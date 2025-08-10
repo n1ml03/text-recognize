@@ -1,3 +1,5 @@
+mod error;
+mod utils;
 mod services;
 mod commands;
 

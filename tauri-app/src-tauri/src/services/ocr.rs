@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use crate::error::{AppResult, AppError, ErrorCode};
 use image::{DynamicImage, ImageFormat, ImageBuffer, Luma};
 use imageproc::contrast::adaptive_threshold;
 use imageproc::morphology::{close, open};
@@ -6,6 +6,7 @@ use imageproc::filter::gaussian_blur_f32;
 use imageproc::distance_transform::Norm;
 use leptess::{LepTess, Variable};
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OCRResult {
@@ -52,47 +53,75 @@ impl Default for PreprocessingOptions {
 
 pub struct OCRService {
     tesseract: LepTess,
+    // Cache for preprocessed images to avoid reprocessing
+    image_cache: Arc<dashmap::DashMap<String, Arc<DynamicImage>>>,
 }
 
 impl OCRService {
-    pub fn new() -> Result<Self> {
+    pub fn new() -> AppResult<Self> {
         log::info!("Initializing OCR Service with Tesseract");
 
         let mut tesseract = LepTess::new(None, "eng")
-            .map_err(|e| anyhow!("Failed to initialize Tesseract: {}", e))?;
+            .map_err(|e| AppError::with_details(
+                ErrorCode::OcrInitialization,
+                "Failed to initialize Tesseract",
+                e.to_string()
+            ))?;
 
         // Configure Tesseract for better accuracy
         tesseract.set_variable(Variable::TesseditPagesegMode, "6")
-            .map_err(|e| anyhow!("Failed to set page segmentation mode: {}", e))?;
+            .map_err(|e| AppError::with_details(
+                ErrorCode::OcrInitialization,
+                "Failed to set page segmentation mode",
+                e.to_string()
+            ))?;
         tesseract.set_variable(Variable::TesseditOcrEngineMode, "3")
-            .map_err(|e| anyhow!("Failed to set OCR engine mode: {}", e))?;
+            .map_err(|e| AppError::with_details(
+                ErrorCode::OcrInitialization,
+                "Failed to set OCR engine mode",
+                e.to_string()
+            ))?;
 
         log::info!("OCR Service initialized successfully");
-        Ok(Self { tesseract })
+        Ok(Self {
+            tesseract,
+            image_cache: Arc::new(dashmap::DashMap::new()),
+        })
     }
 
     pub async fn extract_text_from_image(
         &mut self,
         image_path: &str,
         options: Option<PreprocessingOptions>,
-    ) -> Result<OCRResult> {
+    ) -> AppResult<OCRResult> {
         let start_time = std::time::Instant::now();
 
         log::info!("Processing OCR for file: {}", image_path);
 
-        // Load and preprocess the image
-        let image = self.load_and_preprocess_image(image_path, options.as_ref())?;
+        // Check cache first for performance optimization
+        let _cache_key = format!("{}_{:?}", image_path, options);
 
-        // Convert to bytes for Tesseract
-        let image_bytes = self.image_to_bytes(&image)?;
+        // Load and preprocess the image (with caching)
+        let image = self.load_and_preprocess_image_cached(image_path, options.as_ref())?;
+
+        // Convert to bytes for Tesseract (reuse buffer to reduce allocations)
+        let image_bytes = self.image_to_bytes_optimized(&image)?;
 
         // Set image data in Tesseract
         self.tesseract.set_image_from_mem(&image_bytes)
-            .map_err(|e| anyhow!("Failed to set image in Tesseract: {}", e))?;
+            .map_err(|e| AppError::with_details(
+                ErrorCode::OcrProcessing,
+                "Failed to set image in Tesseract",
+                e.to_string()
+            ))?;
 
         // Extract text
         let text = self.tesseract.get_utf8_text()
-            .map_err(|e| anyhow!("Failed to extract text: {}", e))?;
+            .map_err(|e| AppError::with_details(
+                ErrorCode::OcrProcessing,
+                "Failed to extract text",
+                e.to_string()
+            ))?;
 
         // Get confidence
         let confidence = self.tesseract.mean_text_conf() as f32 / 100.0;
@@ -114,14 +143,55 @@ impl OCRService {
         })
     }
 
+    fn load_and_preprocess_image_cached(
+        &self,
+        image_path: &str,
+        options: Option<&PreprocessingOptions>,
+    ) -> AppResult<Arc<DynamicImage>> {
+        let cache_key = format!("{}_{:?}", image_path, options);
+
+        // Check cache first
+        if let Some(cached_image) = self.image_cache.get(&cache_key) {
+            return Ok(cached_image.clone());
+        }
+
+        // Load the image
+        let image = image::open(image_path)
+            .map_err(|e| AppError::with_details(
+                ErrorCode::ImageLoading,
+                "Failed to load image",
+                e.to_string()
+            ))?;
+
+        // Apply preprocessing if options are provided
+        let processed_image = if let Some(opts) = options {
+            self.preprocess_image(image, opts)?
+        } else {
+            image
+        };
+
+        let arc_image = Arc::new(processed_image);
+
+        // Cache the processed image (limit cache size)
+        if self.image_cache.len() < 10 {
+            self.image_cache.insert(cache_key, arc_image.clone());
+        }
+
+        Ok(arc_image)
+    }
+
     fn load_and_preprocess_image(
         &self,
         image_path: &str,
         options: Option<&PreprocessingOptions>,
-    ) -> Result<DynamicImage> {
+    ) -> AppResult<DynamicImage> {
         // Load the image
         let image = image::open(image_path)
-            .map_err(|e| anyhow!("Failed to load image: {}", e))?;
+            .map_err(|e| AppError::with_details(
+                ErrorCode::ImageLoading,
+                "Failed to load image",
+                e.to_string()
+            ))?;
 
         // Apply preprocessing if options are provided
         if let Some(opts) = options {
@@ -135,7 +205,7 @@ impl OCRService {
         &self,
         image: DynamicImage,
         options: &PreprocessingOptions,
-    ) -> Result<DynamicImage> {
+    ) -> AppResult<DynamicImage> {
         // Convert to grayscale for processing
         let mut gray_image = image.to_luma8();
 
@@ -197,14 +267,32 @@ impl OCRService {
         close(&opened, kernel, 1)
     }
 
-    fn image_to_bytes(&self, image: &DynamicImage) -> Result<Vec<u8>> {
-        let mut bytes = Vec::new();
+    fn image_to_bytes_optimized(&self, image: &DynamicImage) -> AppResult<Vec<u8>> {
+        // Pre-allocate buffer with estimated size to reduce reallocations
+        let estimated_size = (image.width() * image.height() * 4) as usize; // RGBA estimate
+        let mut bytes = Vec::with_capacity(estimated_size);
+
         image.write_to(&mut std::io::Cursor::new(&mut bytes), ImageFormat::Png)
-            .map_err(|e| anyhow!("Failed to convert image to bytes: {}", e))?;
+            .map_err(|e| AppError::with_details(
+                ErrorCode::ImagePreprocessing,
+                "Failed to convert image to bytes",
+                e.to_string()
+            ))?;
         Ok(bytes)
     }
 
-    fn extract_word_details(&mut self) -> Result<Vec<WordDetail>> {
+    fn image_to_bytes(&self, image: &DynamicImage) -> AppResult<Vec<u8>> {
+        let mut bytes = Vec::new();
+        image.write_to(&mut std::io::Cursor::new(&mut bytes), ImageFormat::Png)
+            .map_err(|e| AppError::with_details(
+                ErrorCode::ImagePreprocessing,
+                "Failed to convert image to bytes",
+                e.to_string()
+            ))?;
+        Ok(bytes)
+    }
+
+    fn extract_word_details(&mut self) -> AppResult<Vec<WordDetail>> {
         let mut word_details = Vec::new();
 
         // For now, create a simple word detail extraction

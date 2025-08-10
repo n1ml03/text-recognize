@@ -163,12 +163,14 @@ impl GrammarService {
 
         // Check cache first
         let cache_key = format!("{}_{}_{}", text.trim(), auto_correct, self.config.smart_suggestions);
-        if let Some((cached_result, cached_time)) = self.cache.get(&cache_key) {
+        if let Some(entry) = self.cache.get(&cache_key) {
+            let (cached_result, cached_time) = entry.value();
             // Cache valid for 5 minutes
             if cached_time.elapsed() < Duration::from_secs(300) {
                 return Ok(cached_result.clone());
             } else {
                 // Remove expired cache entry
+                drop(entry);
                 self.cache.remove(&cache_key);
             }
         }

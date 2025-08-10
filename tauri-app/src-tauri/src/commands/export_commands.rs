@@ -1,5 +1,5 @@
 use crate::services::{CSVExporterService, ExportRecord, ExportOptions, ExportStatistics};
-use anyhow::Result;
+use crate::error::ToTauriResult;
 
 #[tauri::command]
 pub async fn export_to_csv(
@@ -7,8 +7,7 @@ pub async fn export_to_csv(
     record: ExportRecord,
     options: Option<ExportOptions>,
 ) -> Result<(), String> {
-    CSVExporterService::export_record(&file_path, &record, options)
-        .map_err(|e| format!("CSV export failed: {}", e))
+    CSVExporterService::export_record(&file_path, &record, options).to_tauri_result()
 }
 
 #[tauri::command]
@@ -17,26 +16,22 @@ pub async fn export_multiple_to_csv(
     records: Vec<ExportRecord>,
     options: Option<ExportOptions>,
 ) -> Result<(), String> {
-    CSVExporterService::export_multiple_records(&file_path, &records, options)
-        .map_err(|e| format!("Multiple CSV export failed: {}", e))
+    CSVExporterService::export_multiple_records(&file_path, &records, options).to_tauri_result()
 }
 
 #[tauri::command]
 pub async fn read_csv_file(file_path: String) -> Result<Vec<ExportRecord>, String> {
-    CSVExporterService::read_csv_file(&file_path)
-        .map_err(|e| format!("Failed to read CSV file: {}", e))
+    CSVExporterService::read_csv_file(&file_path).to_tauri_result()
 }
 
 #[tauri::command]
 pub async fn get_csv_statistics(file_path: String) -> Result<ExportStatistics, String> {
-    CSVExporterService::get_export_statistics(&file_path)
-        .map_err(|e| format!("Failed to get CSV statistics: {}", e))
+    CSVExporterService::get_export_statistics(&file_path).to_tauri_result()
 }
 
 #[tauri::command]
 pub async fn create_csv_backup(file_path: String) -> Result<String, String> {
-    CSVExporterService::create_backup(&file_path)
-        .map_err(|e| format!("Failed to create CSV backup: {}", e))
+    CSVExporterService::create_backup(&file_path).to_tauri_result()
 }
 
 #[tauri::command]
@@ -76,8 +71,7 @@ pub async fn create_export_record(
     };
 
     // Validate the record
-    CSVExporterService::validate_export_data(&record)
-        .map_err(|e| format!("Invalid export record: {}", e))?;
+    CSVExporterService::validate_export_data(&record).to_tauri_result()?;
 
     Ok(record)
 }

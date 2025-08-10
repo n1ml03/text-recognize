@@ -1,5 +1,7 @@
 use crate::services::{OCRService, OCRResult, PreprocessingOptions};
-use anyhow::Result;
+use crate::error::ToTauriResult;
+use crate::utils::file_extensions::SupportedExtensions;
+use crate::utils::file_validation;
 use tokio::sync::Mutex;
 use tauri::State;
 
@@ -15,7 +17,7 @@ pub async fn process_image_ocr(
     ocr_service
         .extract_text_from_image(&file_path, preprocessing_options)
         .await
-        .map_err(|e| format!("OCR processing failed: {}", e))
+        .to_tauri_result()
 }
 
 #[tauri::command]
@@ -31,18 +33,15 @@ pub async fn get_preprocessing_preview(
 
 #[tauri::command]
 pub async fn validate_image_file(file_path: String) -> Result<bool, String> {
-    use crate::services::FileHandlerService;
-    
-    match FileHandlerService::validate_file_path(&file_path) {
-        Ok(_) => Ok(FileHandlerService::is_supported_image(&file_path)),
-        Err(e) => Err(format!("File validation failed: {}", e)),
+    match file_validation::validate_file_path(&file_path) {
+        Ok(_) => Ok(SupportedExtensions::is_image(&file_path)),
+        Err(e) => Err(e.to_tauri_error()),
     }
 }
 
 #[tauri::command]
 pub async fn get_supported_image_formats() -> Result<Vec<String>, String> {
-    use crate::services::FileHandlerService;
-    Ok(FileHandlerService::get_supported_image_extensions())
+    Ok(SupportedExtensions::IMAGE_EXTENSIONS.iter().map(|s| s.to_string()).collect())
 }
 
 #[tauri::command]
@@ -52,7 +51,7 @@ pub async fn extract_video_frames(
     frame_interval: Option<u32>,
 ) -> Result<Vec<String>, String> {
     use crate::services::FileHandlerService;
-    
+
     FileHandlerService::extract_frames_from_video(&video_path, &output_dir, frame_interval)
-        .map_err(|e| format!("Video frame extraction failed: {}", e))
+        .to_tauri_result()
 }

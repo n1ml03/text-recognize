@@ -1,4 +1,4 @@
-use crate::services::{OCRService, GrammarService, ExportRecord, CSVExporterService};
+use crate::services::{ExportRecord, CSVExporterService};
 use anyhow::Result;
 use std::path::Path;
 use tokio::sync::Mutex;
@@ -53,7 +53,7 @@ pub struct BatchProgress {
 }
 
 // Global batch state (in a real app, this should be managed better)
-type BatchStateType = Mutex<BatchState>;
+pub type BatchStateType = Mutex<BatchState>;
 
 #[tauri::command]
 pub async fn batch_process_files(

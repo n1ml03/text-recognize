@@ -1,5 +1,5 @@
 use crate::services::{GrammarService, GrammarCheckResult, LanguageStats, GrammarConfig};
-use anyhow::Result;
+use crate::error::ToTauriResult;
 use tokio::sync::Mutex;
 use tauri::State;
 
@@ -15,7 +15,7 @@ pub async fn check_grammar(
     grammar_service
         .check_text(&text, auto_correct)
         .await
-        .map_err(|e| format!("Grammar checking failed: {}", e))
+        .to_tauri_result()
 }
 
 #[tauri::command]
