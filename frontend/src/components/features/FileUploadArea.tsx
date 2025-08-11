@@ -24,9 +24,16 @@ export function FileUploadArea() {
   // Universal file handling for both desktop and web
   const handleFileSelect = useCallback(async (fileInput: string | File) => {
     try {
+      console.log('Starting file selection process:', fileInput instanceof File ? fileInput.name : fileInput);
+      console.log('Environment - Web:', universalFileApi.isWebEnvironment(), 'Tauri:', universalFileApi.isTauriEnvironment());
+
       // Validate file
+      console.log('Validating file...');
       const isValid = await universalFileApi.validateFile(fileInput);
+      console.log('File validation result:', isValid);
+
       if (!isValid) {
+        console.error('File validation failed for:', fileInput instanceof File ? fileInput.name : fileInput);
         setError('Selected file is not valid or cannot be accessed');
         return;
       }
@@ -43,15 +50,19 @@ export function FileUploadArea() {
       }
 
       // Get file info
+      console.log('Getting file info...');
       const fileInfo = await universalFileApi.getFileInfo(fileInput);
-      
+      console.log('File info received:', fileInfo);
+
       // Store additional info about web files
       if (fileInput instanceof File) {
         setIsWebFile(true);
-        // Store the File object in the store for later processing
+        // Store the File object in the fileInfo for later processing
         (fileInfo as any).webFile = fileInput;
+        console.log('Web file stored for processing:', fileInput.name, 'File object:', fileInput);
       } else {
         setIsWebFile(false);
+        console.log('Desktop file path stored:', fileInput);
       }
       
       setCurrentFile(fileInfo);

@@ -362,3 +362,47 @@ select {
 .scrollbar-thin::-webkit-scrollbar-thumb:hover {
   background-color: hsl(var(--color-muted-foreground));
 }
+
+/* ContentEditable placeholder support */
+.empty-editor:empty::before {
+  content: attr(data-placeholder);
+  color: hsl(var(--color-muted-foreground));
+  pointer-events: none;
+  position: absolute;
+  opacity: 0.7;
+}
+
+.empty-editor:focus:empty::before {
+  opacity: 0.5;
+}
+
+/* Toolbar visibility utilities */
+.toolbar-always-visible {
+  position: sticky !important;
+  bottom: 0 !important;
+  z-index: 10 !important;
+}
+
+/* Small screen optimization for editor */
+@media (max-height: 600px) {
+  .editor-container {
+    max-height: calc(100vh - 200px) !important;
+  }
+  
+  .toolbar-compact {
+    min-height: 50px !important;
+    padding: 0.5rem !important;
+  }
+  
+  .toolbar-compact button {
+    height: 1.5rem !important;
+    padding: 0.25rem 0.5rem !important;
+    font-size: 0.6rem !important;
+  }
+}
+
+@media (max-height: 500px) {
+  .editor-container {
+    max-height: calc(100vh - 160px) !important;
+  }
+}

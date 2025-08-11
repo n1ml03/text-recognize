@@ -155,14 +155,37 @@ export class UniversalFileAPI {
   static async validateFile(filePathOrFile: string | File): Promise<boolean> {
     try {
       if (isTauriEnvironment() && typeof filePathOrFile === 'string') {
+        console.log('Validating desktop file:', filePathOrFile);
         const { fileApi: tauriFileApi } = await import('./tauri-api');
-        return await tauriFileApi.validateFilePath(filePathOrFile);
+        const result = await tauriFileApi.validateFilePath(filePathOrFile);
+        console.log('Desktop file validation result:', result);
+        return result;
       } else if (isWebEnvironment() && filePathOrFile instanceof File) {
         // Basic validation for web files
-        return this.isValidFileType(filePathOrFile.name) && filePathOrFile.size > 0;
+        console.log('Validating web file:', filePathOrFile.name, 'Size:', filePathOrFile.size, 'Type:', filePathOrFile.type);
+
+        // Check file size
+        if (filePathOrFile.size === 0) {
+          console.log('File validation failed: file is empty');
+          return false;
+        }
+
+        // Check file type
+        const isValidType = this.isValidFileType(filePathOrFile.name);
+        console.log('File type valid:', isValidType, 'Extension:', WebFileHandler.getFileExtension(filePathOrFile.name));
+
+        if (!isValidType) {
+          console.log('Supported formats:', this.getAllSupportedFormats());
+        }
+
+        return isValidType;
       }
+      console.log('File validation failed - invalid environment or file type');
+      console.log('Environment check - Web:', isWebEnvironment(), 'Tauri:', isTauriEnvironment());
+      console.log('File input type:', typeof filePathOrFile, 'Is File:', filePathOrFile instanceof File);
       return false;
-    } catch {
+    } catch (error) {
+      console.error('File validation error:', error);
       return false;
     }
   }

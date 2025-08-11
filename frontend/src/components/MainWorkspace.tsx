@@ -62,7 +62,7 @@ function MainView() {
         w-full lg:w-80 xl:w-96
         border-b lg:border-b-0 lg:border-r border-border
         bg-muted/30 flex flex-col
-        max-h-[40vh] lg:max-h-none
+        max-h-[35vh] lg:max-h-none
         overflow-hidden
       ">
         <div className="p-3 sm:p-4 space-y-3 sm:space-y-4 overflow-y-auto mobile-scroll">
@@ -75,7 +75,7 @@ function MainView() {
       </div>
 
       {/* Main Editor - Responsive layout */}
-      <div className="flex-1 min-w-0 min-h-0">
+      <div className="flex-1 min-w-0 h-full overflow-hidden">
         <SmartTextEditor />
       </div>
     </div>

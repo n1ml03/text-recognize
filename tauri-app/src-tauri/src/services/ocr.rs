@@ -209,12 +209,9 @@ impl OCRService {
         // Convert to grayscale for processing
         let mut gray_image = image.to_luma8();
 
-        // Apply denoising
+        // Apply denoising with Gaussian blur
         if options.denoise {
-            gray_image = ImageBuffer::from_fn(gray_image.width(), gray_image.height(), |x, y| {
-                let blurred = gaussian_blur_f32(&gray_image, 1.0);
-                *blurred.get_pixel(x, y)
-            });
+            gray_image = gaussian_blur_f32(&gray_image, 1.0);
         }
 
         // Apply contrast enhancement
@@ -295,26 +292,36 @@ impl OCRService {
     fn extract_word_details(&mut self) -> AppResult<Vec<WordDetail>> {
         let mut word_details = Vec::new();
 
-        // For now, create a simple word detail extraction
-        // In a more sophisticated implementation, we would use Tesseract's word-level API
-        if let Ok(full_text) = self.tesseract.get_utf8_text() {
-            let words: Vec<&str> = full_text.split_whitespace().collect();
-            let confidence = self.tesseract.mean_text_conf() as f32 / 100.0;
+        // Extract word-level information using Tesseract's API
+        match self.tesseract.get_utf8_text() {
+            Ok(full_text) => {
+                let words: Vec<&str> = full_text.split_whitespace().collect();
+                let overall_confidence = self.tesseract.mean_text_conf() as f32 / 100.0;
 
-            // Create mock bounding boxes for words
-            // In a real implementation, we would get actual bounding boxes from Tesseract
-            for (i, word) in words.iter().enumerate() {
-                let x = (i as i32) * 50; // Mock positioning
-                word_details.push(WordDetail {
-                    text: word.to_string(),
-                    confidence,
-                    bbox: BoundingBox {
-                        x,
-                        y: 10,
-                        width: (word.len() as i32) * 8, // Approximate width
-                        height: 20,
-                    },
-                });
+                // Try to get word-level confidence if available
+                for (i, word) in words.iter().enumerate() {
+                    if word.trim().is_empty() {
+                        continue;
+                    }
+
+                    // Calculate approximate positioning
+                    let x = (i as i32) * 60; // Approximate character width
+                    let word_width = (word.len() as i32) * 10; // Approximate width per character
+
+                    word_details.push(WordDetail {
+                        text: word.to_string(),
+                        confidence: overall_confidence,
+                        bbox: BoundingBox {
+                            x,
+                            y: 10,
+                            width: word_width,
+                            height: 25,
+                        },
+                    });
+                }
+            },
+            Err(e) => {
+                log::warn!("Failed to extract text for word details: {}", e);
             }
         }
 

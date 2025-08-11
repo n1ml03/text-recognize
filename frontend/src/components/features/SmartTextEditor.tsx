@@ -8,10 +8,12 @@ import {
   CheckCircle, 
   AlertTriangle, 
   Zap,
-
   Sparkles,
   X,
-  Download
+  Download,
+  Bold,
+  Italic,
+  Underline
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -59,7 +61,7 @@ export function SmartTextEditor() {
   const [smartMode, setSmartMode] = useState(true);
   const [showExportPanel, setShowExportPanel] = useState(false);
   
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const textareaRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
   const checkingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const grammarCacheRef = useRef<Map<string, any>>(new Map());
@@ -80,6 +82,174 @@ export function SmartTextEditor() {
       setEditedText(ocrResult.text);
     }
   }, [ocrResult, setEditedText]);
+
+  // Optimized text highlighting with memoization and virtual rendering
+  const renderHighlightedText = useCallback(() => {
+    if (!grammarResult || grammarResult.errors.length === 0) {
+      return editedText;
+    }
+
+    // Use cached result if text hasn't changed
+    const cacheKey = `${editedText}_${grammarResult.error_count}`;
+    const cachedHTML = grammarCacheRef.current.get(`highlight_${cacheKey}`);
+    if (cachedHTML) {
+      return cachedHTML;
+    }
+
+    let highlightedText = '';
+    let lastOffset = 0;
+
+    // Sort errors by offset to process them in order
+    const sortedErrors = [...grammarResult.errors].sort((a, b) => a.offset - b.offset);
+
+    // Optimize for performance by reducing DOM complexity
+    sortedErrors.forEach((error, index) => {
+      // Add text before error
+      const beforeText = editedText.substring(lastOffset, error.offset);
+      if (beforeText) {
+        highlightedText += escapeHtml(beforeText);
+      }
+      
+      // Add highlighted error text with optimized classes
+      const errorText = editedText.substring(error.offset, error.offset + error.length);
+      const errorType = error.error_type || 'default';
+      const errorClass = getOptimizedErrorClass(errorType, error.confidence || 0.5);
+      
+      highlightedText += `<span class="${errorClass}" data-error-index="${index}" data-error-type="${errorType}">${escapeHtml(errorText)}</span>`;
+      
+      lastOffset = error.offset + error.length;
+    });
+
+    // Add remaining text
+    const remainingText = editedText.substring(lastOffset);
+    if (remainingText) {
+      highlightedText += escapeHtml(remainingText);
+    }
+    
+    // Cache the result
+    grammarCacheRef.current.set(`highlight_${cacheKey}`, highlightedText);
+    
+    return highlightedText;
+  }, [editedText, grammarResult]);
+
+  // Optimized error class generation
+  const getOptimizedErrorClass = useCallback((errorType: string, confidence: number) => {
+    const baseClasses = 'underline decoration-wavy cursor-pointer transition-colors duration-200';
+    const hoverClasses = 'hover:bg-gradient-to-r hover:from-yellow-50 hover:to-orange-50 dark:hover:from-yellow-900/20 dark:hover:to-orange-900/20';
+
+    const colorMap = {
+      spelling: confidence > 0.8 ? 'decoration-red-500' : 'decoration-red-400',
+      grammar: confidence > 0.8 ? 'decoration-orange-500' : 'decoration-orange-400',
+      punctuation: confidence > 0.8 ? 'decoration-blue-500' : 'decoration-blue-400',
+      style: confidence > 0.8 ? 'decoration-purple-500' : 'decoration-purple-400',
+      default: 'decoration-gray-400 dark:decoration-gray-500'
+    };
+
+    const colorClass = colorMap[errorType as keyof typeof colorMap] || colorMap.default;
+
+    return `${baseClasses} ${colorClass} ${hoverClasses}`;
+  }, []);
+
+  // HTML escape utility for security
+  const escapeHtml = useCallback((text: string): string => {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }, []);
+
+  // Track if we're currently updating content to prevent recursion
+  const isUpdatingContentRef = useRef(false);
+
+  // Function to update content while preserving cursor position
+  const updateContentWithCursor = useCallback((forceUpdate = false) => {
+    if (!textareaRef.current || isUpdatingContentRef.current) return;
+    
+    const currentText = textareaRef.current.textContent || '';
+    const shouldUpdate = forceUpdate || currentText !== editedText;
+    
+    if (shouldUpdate) {
+      isUpdatingContentRef.current = true;
+      
+      // Save cursor position
+      const selection = window.getSelection();
+      const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
+      let cursorOffset = 0;
+      
+      if (range && range.startContainer) {
+        try {
+          const walker = document.createTreeWalker(
+            textareaRef.current,
+            NodeFilter.SHOW_TEXT,
+            null
+          );
+          
+          let currentPos = 0;
+          let textNode;
+          
+          while (textNode = walker.nextNode()) {
+            if (textNode === range.startContainer) {
+              cursorOffset = currentPos + range.startOffset;
+              break;
+            }
+            currentPos += textNode.textContent?.length || 0;
+          }
+        } catch (error) {
+          cursorOffset = editedText.length;
+        }
+      }
+      
+      // Update content
+      if (grammarResult?.errors && grammarResult.errors.length > 0) {
+        textareaRef.current.innerHTML = renderHighlightedText();
+      } else {
+        textareaRef.current.textContent = editedText;
+      }
+      
+      // Restore cursor position
+      requestAnimationFrame(() => {
+        try {
+          const walker = document.createTreeWalker(
+            textareaRef.current!,
+            NodeFilter.SHOW_TEXT,
+            null
+          );
+          
+          let currentPos = 0;
+          let targetNode = null;
+          let targetOffset = 0;
+          let textNode;
+          
+          while (textNode = walker.nextNode()) {
+            const nodeLength = textNode.textContent?.length || 0;
+            if (currentPos + nodeLength >= cursorOffset) {
+              targetNode = textNode;
+              targetOffset = cursorOffset - currentPos;
+              break;
+            }
+            currentPos += nodeLength;
+          }
+          
+          if (targetNode && selection) {
+            const newRange = document.createRange();
+            const safeOffset = Math.min(targetOffset, targetNode.textContent?.length || 0);
+            newRange.setStart(targetNode, safeOffset);
+            newRange.collapse(true);
+            selection.removeAllRanges();
+            selection.addRange(newRange);
+          }
+        } catch (error) {
+          // Ignore cursor positioning errors
+        }
+        
+        isUpdatingContentRef.current = false;
+      });
+    }
+  }, [editedText, grammarResult, renderHighlightedText]);
+
+  // Update content when text or grammar results change
+  useEffect(() => {
+    updateContentWithCursor(true);
+  }, [editedText, grammarResult, updateContentWithCursor]);
 
   // Enhanced real-time grammar checking with intelligent caching and optimized debouncing
   useEffect(() => {
@@ -142,9 +312,20 @@ export function SmartTextEditor() {
   }, [editedText, autoCheck, smartMode, setCheckingGrammar, setGrammarResult]);
 
   const handleTextChange = (value: string) => {
-    setEditedText(value);
-    setShowSuggestion(null); // Hide any open suggestions
-    isApplyingCorrectionRef.current = false; // Reset correction flag
+    // Only update if the value actually changed
+    if (value !== editedText) {
+      setEditedText(value);
+      setShowSuggestion(null); // Hide any open suggestions
+      isApplyingCorrectionRef.current = false; // Reset correction flag
+    }
+  };
+
+  // Handle content change that preserves formatting
+  const handleFormattedTextChange = () => {
+    if (textareaRef.current && !isUpdatingContentRef.current) {
+      const text = textareaRef.current.textContent || '';
+      handleTextChange(text);
+    }
   };
 
   const copyToClipboard = async () => {
@@ -166,6 +347,25 @@ export function SmartTextEditor() {
     setEditedText('');
     setShowSuggestion(null);
   };
+
+  // Formatting functions
+  const applyFormatting = (command: string) => {
+    if (textareaRef.current) {
+      textareaRef.current.focus();
+      document.execCommand(command, false);
+      // Update text state after formatting
+      setTimeout(() => {
+        if (textareaRef.current) {
+          const text = textareaRef.current.textContent || '';
+          handleTextChange(text);
+        }
+      }, 10);
+    }
+  };
+
+  const toggleBold = () => applyFormatting('bold');
+  const toggleItalic = () => applyFormatting('italic');
+  const toggleUnderline = () => applyFormatting('underline');
 
   // Enhanced apply correction with smooth transitions
   const applySuggestion = (errorIndex: number, suggestion: string) => {
@@ -288,8 +488,57 @@ export function SmartTextEditor() {
   const handleTextClick = (event: React.MouseEvent) => {
     if (!grammarResult || !textareaRef.current) return;
 
-    const textarea = textareaRef.current;
-    const clickPosition = textarea.selectionStart;
+    // Check if clicked on a highlighted error span
+    const target = event.target as HTMLElement;
+    if (target.hasAttribute('data-error-index')) {
+      const errorIndex = parseInt(target.getAttribute('data-error-index') || '0', 10);
+      const error = grammarResult.errors[errorIndex];
+      
+      if (error) {
+        setShowSuggestion({
+          error,
+          errorIndex,
+          x: event.clientX,
+          y: event.clientY,
+          visible: true
+        });
+        return;
+      }
+    }
+
+    // Fallback: try to get position using selection
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) {
+      setShowSuggestion(null);
+      return;
+    }
+    
+    const range = selection.getRangeAt(0);
+    let clickPosition = 0;
+    
+    // Calculate text position considering highlighted spans
+    try {
+      const walker = document.createTreeWalker(
+        textareaRef.current,
+        NodeFilter.SHOW_TEXT,
+        null
+      );
+      
+      let currentPosition = 0;
+      let textNode;
+      
+      while (textNode = walker.nextNode()) {
+        const nodeLength = textNode.textContent?.length || 0;
+        if (textNode === range.startContainer) {
+          clickPosition = currentPosition + range.startOffset;
+          break;
+        }
+        currentPosition += nodeLength;
+      }
+    } catch (error) {
+      setShowSuggestion(null);
+      return;
+    }
     
     // Find error at click position
     const error = grammarResult.errors.find(
@@ -313,82 +562,10 @@ export function SmartTextEditor() {
     }
   };
 
-  // Optimized text highlighting with memoization and virtual rendering
-  const renderHighlightedText = useCallback(() => {
-    if (!grammarResult || grammarResult.errors.length === 0) {
-      return editedText;
-    }
 
-    // Use cached result if text hasn't changed
-    const cacheKey = `${editedText}_${grammarResult.error_count}`;
-    const cachedHTML = grammarCacheRef.current.get(`highlight_${cacheKey}`);
-    if (cachedHTML) {
-      return cachedHTML;
-    }
-
-    let highlightedText = '';
-    let lastOffset = 0;
-
-    // Sort errors by offset to process them in order
-    const sortedErrors = [...grammarResult.errors].sort((a, b) => a.offset - b.offset);
-
-    // Optimize for performance by reducing DOM complexity
-    sortedErrors.forEach((error, index) => {
-      // Add text before error
-      const beforeText = editedText.substring(lastOffset, error.offset);
-      if (beforeText) {
-        highlightedText += escapeHtml(beforeText);
-      }
-      
-      // Add highlighted error text with optimized classes
-      const errorText = editedText.substring(error.offset, error.offset + error.length);
-      const errorType = error.error_type || 'default';
-      const errorClass = getOptimizedErrorClass(errorType, error.confidence || 0.5);
-      
-      highlightedText += `<span class="${errorClass}" data-error-index="${index}" data-error-type="${errorType}">${escapeHtml(errorText)}</span>`;
-      
-      lastOffset = error.offset + error.length;
-    });
-
-    // Add remaining text
-    const remainingText = editedText.substring(lastOffset);
-    if (remainingText) {
-      highlightedText += escapeHtml(remainingText);
-    }
-    
-    // Cache the result
-    grammarCacheRef.current.set(`highlight_${cacheKey}`, highlightedText);
-    
-    return highlightedText;
-  }, [editedText, grammarResult]);
-  
-  // Optimized error class generation
-  const getOptimizedErrorClass = useCallback((errorType: string, confidence: number) => {
-    const baseClasses = 'underline decoration-wavy cursor-pointer transition-colors duration-200';
-    const hoverClasses = 'hover:bg-gradient-to-r hover:from-yellow-50 hover:to-orange-50 dark:hover:from-yellow-900/20 dark:hover:to-orange-900/20';
-
-    const colorMap = {
-      spelling: confidence > 0.8 ? 'decoration-red-500' : 'decoration-red-400',
-      grammar: confidence > 0.8 ? 'decoration-orange-500' : 'decoration-orange-400',
-      punctuation: confidence > 0.8 ? 'decoration-blue-500' : 'decoration-blue-400',
-      style: confidence > 0.8 ? 'decoration-purple-500' : 'decoration-purple-400',
-      default: 'decoration-gray-400 dark:decoration-gray-500'
-    };
-
-    const colorClass = colorMap[errorType as keyof typeof colorMap] || colorMap.default;
-
-    return `${baseClasses} ${colorClass} ${hoverClasses}`;
-  }, []);
-
-  // HTML escape utility for security
-  const escapeHtml = useCallback((text: string): string => {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-  }, []);
 
   return (
-    <div className="h-full flex flex-col bg-background">
+    <div className="h-full flex flex-col bg-background overflow-hidden">
       {/* Smart Header */}
       <div className="flex-shrink-0 border-b border-border bg-card px-6 py-4 shadow-sm">
         <div className="flex items-center justify-between">
@@ -506,61 +683,72 @@ export function SmartTextEditor() {
       </div>
 
       {/* Main Editor Area - Mobile-first responsive */}
-      <div className="flex-1 relative bg-muted/30 overflow-hidden">
+      <div className="flex-1 relative bg-muted/30 overflow-hidden min-h-0 editor-container" style={{ maxHeight: 'calc(100% - 68px)' }}>
         <div
           ref={editorRef}
-          className="h-full p-3 sm:p-4 lg:p-6"
+          className="h-full p-3 sm:p-4 lg:p-6 max-h-full"
         >
-          <div className="relative h-full bg-card rounded-lg border border-border shadow-mobile sm:shadow-sm">
-            {/* Main textarea - Mobile optimized */}
-            <textarea
+          <div className="relative h-full bg-card rounded-lg border border-border shadow-mobile sm:shadow-sm overflow-hidden max-h-full">
+            {/* Main content editable area with inline highlighting */}
+            <div
               ref={textareaRef}
-              value={editedText}
-              onChange={(e) => handleTextChange(e.target.value)}
+              contentEditable
+              suppressContentEditableWarning={true}
+              onInput={() => {
+                handleFormattedTextChange();
+              }}
               onClick={handleTextClick}
-              placeholder={
-                ocrResult
-                  ? "Edit the extracted text here. Grammar suggestions will appear as you type..."
-                  : "Start typing or process an image with OCR. Grammar checking happens automatically..."
-              }
+              onKeyDown={(e) => {
+                // Handle specific key behaviors for better UX
+                if (e.key === 'Tab') {
+                  e.preventDefault();
+                  document.execCommand('insertText', false, '  ');
+                }
+                // Handle bold formatting (Ctrl/Cmd + B)
+                else if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
+                  e.preventDefault();
+                  document.execCommand('bold', false);
+                }
+                // Handle italic formatting (Ctrl/Cmd + I)
+                else if ((e.ctrlKey || e.metaKey) && e.key === 'i') {
+                  e.preventDefault();
+                  document.execCommand('italic', false);
+                }
+                // Handle underline formatting (Ctrl/Cmd + U)
+                else if ((e.ctrlKey || e.metaKey) && e.key === 'u') {
+                  e.preventDefault();
+                  document.execCommand('underline', false);
+                }
+              }}
+              onBlur={() => {
+                // Ensure content is properly synced
+                handleFormattedTextChange();
+              }}
               className={`
                 w-full h-full resize-none border-0 bg-transparent rounded-lg
                 p-3 sm:p-4 lg:p-6
                 text-base sm:text-base lg:text-base leading-relaxed
                 font-mono focus:outline-none focus:ring-0 relative z-10
-                touch-manipulation
-                ${grammarResult?.errors.length
-                  ? 'text-foreground/10 dark:text-foreground/10'
-                  : 'text-foreground'
-                }
+                touch-manipulation text-foreground overflow-auto
+                whitespace-pre-wrap break-words scrollbar-thin
+                ${!editedText ? 'empty-editor' : ''}
               `}
+              style={{
+                minHeight: '100%',
+                outline: 'none',
+                userSelect: 'text',
+                WebkitUserSelect: 'text'
+              }}
+              data-placeholder={
+                !editedText ? (
+                  ocrResult
+                    ? "Edit the extracted text here. Grammar suggestions will appear as you type..."
+                    : "Start typing or process an image with OCR. Grammar checking happens automatically..."
+                ) : ""
+              }
             />
             
-            {/* Optimized overlay with highlighted text - Mobile responsive */}
-            {grammarResult?.errors && grammarResult.errors.length > 0 && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.2 }}
-                className="
-                  absolute inset-0 pointer-events-auto text-base leading-relaxed
-                  font-mono whitespace-pre-wrap break-words overflow-auto rounded-lg
-                  will-change-contents mobile-scroll
-                  p-3 sm:p-4 lg:p-6
-                "
-                style={{
-                  top: '0.75rem',
-                  left: '0.75rem',
-                  right: '0.75rem',
-                  bottom: '0.75rem',
-                  zIndex: 5,
-                  backfaceVisibility: 'hidden',
-                  transform: 'translateZ(0)' // Force GPU acceleration
-                }}
-                onClick={handleTextClick}
-                dangerouslySetInnerHTML={{ __html: renderHighlightedText() }}
-              />
-            )}
+
 
             {/* Empty state */}
             {!editedText && !ocrResult && (
@@ -778,15 +966,51 @@ export function SmartTextEditor() {
         </AnimatePresence>
 
         {/* Compact Quick Actions Footer */}
-        <div className="flex-shrink-0 border-t border-border bg-card px-6 py-3 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div className="flex gap-1.5">
+        <div className="flex-shrink-0 border-t border-border bg-card px-3 sm:px-6 py-2 sm:py-3 shadow-sm min-h-[60px] sm:min-h-[68px] toolbar-always-visible">
+          <div className="flex items-center justify-between h-full">
+            <div className="flex gap-1 sm:gap-1.5 flex-wrap">
+              {/* Formatting buttons */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={toggleBold}
+                disabled={!editedText}
+                className="text-xs h-7 sm:h-8 px-1.5 sm:px-2 bg-muted border border-border hover:bg-muted/80 text-foreground rounded-md font-bold"
+                title="Bold (Ctrl+B)"
+              >
+                <Bold className="h-3 w-3" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={toggleItalic}
+                disabled={!editedText}
+                className="text-xs h-7 sm:h-8 px-1.5 sm:px-2 bg-muted border border-border hover:bg-muted/80 text-foreground rounded-md italic"
+                title="Italic (Ctrl+I)"
+              >
+                <Italic className="h-3 w-3" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={toggleUnderline}
+                disabled={!editedText}
+                className="text-xs h-7 sm:h-8 px-1.5 sm:px-2 bg-muted border border-border hover:bg-muted/80 text-foreground rounded-md underline"
+                title="Underline (Ctrl+U)"
+              >
+                <Underline className="h-3 w-3" />
+              </Button>
+              
+              {/* Separator */}
+              <div className="h-6 w-px bg-border mx-1" />
+              
+              {/* Text case buttons */}
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setEditedText(editedText.toUpperCase())}
                 disabled={!editedText}
-                className="text-xs h-8 px-3 bg-muted border border-border hover:bg-muted/80 text-foreground rounded-md font-medium"
+                className="text-xs h-7 sm:h-8 px-2 sm:px-3 bg-muted border border-border hover:bg-muted/80 text-foreground rounded-md font-medium"
               >
                 ABC
               </Button>
@@ -795,7 +1019,7 @@ export function SmartTextEditor() {
                 size="sm"
                 onClick={() => setEditedText(editedText.toLowerCase())}
                 disabled={!editedText}
-                className="text-xs h-8 px-3 bg-muted border border-border hover:bg-muted/80 text-foreground rounded-md font-medium"
+                className="text-xs h-7 sm:h-8 px-2 sm:px-3 bg-muted border border-border hover:bg-muted/80 text-foreground rounded-md font-medium"
               >
                 abc
               </Button>
@@ -806,7 +1030,7 @@ export function SmartTextEditor() {
                   editedText.replace(/\b\w/g, l => l.toUpperCase())
                 )}
                 disabled={!editedText}
-                className="text-xs h-8 px-3 bg-muted border border-border hover:bg-muted/80 text-foreground rounded-md font-medium"
+                className="text-xs h-7 sm:h-8 px-2 sm:px-3 bg-muted border border-border hover:bg-muted/80 text-foreground rounded-md font-medium"
               >
                 Aa
               </Button>
@@ -815,13 +1039,13 @@ export function SmartTextEditor() {
                 size="sm"
                 onClick={() => setEditedText(editedText.replace(/\s+/g, ' ').trim())}
                 disabled={!editedText}
-                className="text-xs h-8 px-3 bg-muted border border-border hover:bg-muted/80 text-foreground rounded-md font-medium"
+                className="text-xs h-7 sm:h-8 px-2 sm:px-3 bg-muted border border-border hover:bg-muted/80 text-foreground rounded-md font-medium"
               >
                 Clean
               </Button>
             </div>
 
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1 sm:gap-1.5 flex-wrap">
               {grammarResult && grammarResult.error_count > 0 && (
                 <motion.div
                   whileHover={{ scale: 1.02 }}
@@ -832,7 +1056,7 @@ export function SmartTextEditor() {
                     size="sm"
                     onClick={handleFixAllCorrections}
                     disabled={isApplyingCorrectionRef.current}
-                    className="text-xs h-8 px-3 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-700 hover:from-blue-100 hover:to-indigo-100 dark:hover:from-blue-900/30 dark:hover:to-indigo-900/30 hover:border-blue-300 dark:hover:border-blue-600 text-blue-700 dark:text-blue-300 rounded-md font-medium transition-all duration-300 shadow-sm hover:shadow"
+                    className="text-xs h-7 sm:h-8 px-2 sm:px-3 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-700 hover:from-blue-100 hover:to-indigo-100 dark:hover:from-blue-900/30 dark:hover:to-indigo-900/30 hover:border-blue-300 dark:hover:border-blue-600 text-blue-700 dark:text-blue-300 rounded-md font-medium transition-all duration-300 shadow-sm hover:shadow"
                   >
                     <motion.div
                       animate={{ 
@@ -847,7 +1071,8 @@ export function SmartTextEditor() {
                     >
                       <Sparkles className="h-3 w-3 mr-1 text-blue-600 dark:text-blue-400" />
                     </motion.div>
-                    {isApplyingCorrectionRef.current ? 'Fixing...' : 'Fix All'}
+                    <span className="hidden sm:inline">{isApplyingCorrectionRef.current ? 'Fixing...' : 'Fix All'}</span>
+                    <span className="sm:hidden">{isApplyingCorrectionRef.current ? 'Fix...' : 'Fix'}</span>
                   </Button>
                 </motion.div>
               )}
@@ -857,7 +1082,7 @@ export function SmartTextEditor() {
                 size="sm"
                 onClick={clearText}
                 disabled={!editedText}
-                className="text-xs h-8 px-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 hover:bg-red-100 dark:hover:bg-red-900/30 text-red-700 dark:text-red-300 rounded-md font-medium"
+                className="text-xs h-7 sm:h-8 px-2 sm:px-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 hover:bg-red-100 dark:hover:bg-red-900/30 text-red-700 dark:text-red-300 rounded-md font-medium"
               >
                 Clear
               </Button>

@@ -154,7 +154,7 @@ export interface ExportStatistics {
 // OCR API functions
 export const ocrApi = {
   processImage: async (filePath: string, options?: PreprocessingOptions): Promise<OCRResult> => {
-    return safeInvoke('process_image_ocr', { filePath, preprocessingOptions: options });
+    return safeInvoke('process_image_ocr', { file_path: filePath, preprocessing_options: options });
   },
 
   validateImageFile: async (filePath: string): Promise<boolean> => {
@@ -208,27 +208,27 @@ export const grammarApi = {
 // File API functions
 export const fileApi = {
   getFileInfo: async (filePath: string): Promise<FileInfo> => {
-    return safeInvoke('get_file_info', { filePath });
+    return safeInvoke('get_file_info', { file_path: filePath });
   },
 
   validateFilePath: async (filePath: string): Promise<boolean> => {
-    return safeInvoke('validate_file_path', { filePath });
+    return safeInvoke('validate_file_path', { file_path: filePath });
   },
 
   isSupportedImage: async (filePath: string): Promise<boolean> => {
-    return safeInvoke('is_supported_image', { filePath });
+    return safeInvoke('is_supported_image', { file_path: filePath });
   },
 
   isSupportedVideo: async (filePath: string): Promise<boolean> => {
-    return safeInvoke('is_supported_video', { filePath });
+    return safeInvoke('is_supported_video', { file_path: filePath });
   },
 
   isSupportedDocument: async (filePath: string): Promise<boolean> => {
-    return safeInvoke('is_supported_document', { filePath });
+    return safeInvoke('is_supported_document', { file_path: filePath });
   },
 
   isSupportedPdf: async (filePath: string): Promise<boolean> => {
-    return safeInvoke('is_supported_pdf', { filePath });
+    return safeInvoke('is_supported_pdf', { file_path: filePath });
   },
 
   getSupportedFormats: async (): Promise<[string[], string[], string[], string[]]> => {
@@ -240,31 +240,35 @@ export const fileApi = {
   },
 
   extractTextFromDocument: async (filePath: string): Promise<string> => {
-    return safeInvoke('extract_text_from_document', { filePath });
+    return safeInvoke('extract_text_from_document', { file_path: filePath });
   },
 
   extractTextFromPdf: async (filePath: string): Promise<string> => {
-    return safeInvoke('extract_text_from_pdf', { filePath });
+    return safeInvoke('extract_text_from_pdf', { file_path: filePath });
   },
 
   extractFramesFromVideo: async (videoPath: string, outputDir: string, frameInterval?: number): Promise<string[]> => {
-    return safeInvoke('extract_frames_from_video', { videoPath, outputDir, frameInterval });
+    return safeInvoke('extract_frames_from_video', {
+      video_path: videoPath,
+      output_dir: outputDir,
+      frame_interval: frameInterval
+    });
   },
 
   formatFileSize: async (sizeBytes: number): Promise<string> => {
-    return invoke('format_file_size', { sizeBytes });
+    return safeInvoke('format_file_size', { size_bytes: sizeBytes });
   },
 
   createBackupPath: async (originalPath: string): Promise<string> => {
-    return invoke('create_backup_path', { originalPath });
+    return safeInvoke('create_backup_path', { original_path: originalPath });
   },
 
   ensureDirectoryExists: async (dirPath: string): Promise<void> => {
-    return invoke('ensure_directory_exists', { dirPath });
+    return safeInvoke('ensure_directory_exists', { dir_path: dirPath });
   },
 
   cleanupTempFiles: async (tempDir: string): Promise<void> => {
-    return invoke('cleanup_temp_files', { tempDir });
+    return safeInvoke('cleanup_temp_files', { temp_dir: tempDir });
   },
 };
 

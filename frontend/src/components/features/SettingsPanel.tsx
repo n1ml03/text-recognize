@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   Settings,
@@ -49,12 +49,12 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.9, opacity: 0 }}
-        className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/90 border border-border rounded-lg shadow-lg w-full max-w-4xl max-h-[80vh] overflow-hidden"
+        className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/90 border border-border rounded-lg shadow-lg w-full max-w-5xl max-h-[90vh] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex h-full">
+        <div className="flex h-full min-h-0">
           {/* Sidebar */}
-          <div className="w-64 border-r border-border/50 bg-card/50">
+          <div className="w-64 border-r border-border/50 bg-card/50 flex-shrink-0">
             <div className="p-4 border-b border-border/50">
               <h2 className="text-lg font-semibold flex items-center gap-2 text-foreground">
                 <Settings className="h-5 w-5" />
@@ -83,12 +83,14 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
           </div>
 
           {/* Content */}
-          <div className="flex-1 overflow-y-auto bg-background/50">
-            <div className="p-6">
-              {activeTab === 'general' && <GeneralSettings theme={theme} setTheme={setTheme} themeOptions={themeOptions} />}
-              {activeTab === 'shortcuts' && <ShortcutsSettings />}
-              {activeTab === 'ocr' && <OCRSettings />}
-              {activeTab === 'grammar' && <GrammarSettings />}
+          <div className="flex-1 overflow-hidden bg-background/50 min-w-0">
+            <div className="h-full overflow-y-auto">
+              <div className="p-6">
+                {activeTab === 'general' && <GeneralSettings theme={theme} setTheme={setTheme} themeOptions={themeOptions} />}
+                {activeTab === 'shortcuts' && <ShortcutsSettings />}
+                {activeTab === 'ocr' && <OCRSettings />}
+                {activeTab === 'grammar' && <GrammarSettings />}
+              </div>
             </div>
           </div>
         </div>
@@ -117,22 +119,26 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
 function GeneralSettings({ theme, setTheme, themeOptions }: {
   theme: string;
   setTheme: (theme: 'light' | 'dark' | 'system') => void;
-  themeOptions: Array<{ value: 'light' | 'dark' | 'system'; label: string; icon: any }>;
+  themeOptions: Array<{ value: 'light' | 'dark' | 'system'; label: string; icon: React.ComponentType<{ className?: string }> }>;
 }) {
   return (
-    <div className="space-y-8">
-      <div className="bg-card rounded-lg border p-6">
-        <h3 className="text-lg font-semibold mb-2 flex items-center gap-2">
-          <Monitor className="h-5 w-5 text-primary" />
+    <div className="max-h-[calc(90vh-200px)] overflow-y-auto pr-2">
+      <div className="sticky top-0 bg-background/95 backdrop-blur-sm pb-4 mb-6 border-b border-border/30 z-10">
+        <h3 className="text-xl font-bold mb-2 flex items-center gap-2 text-foreground">
+          <Monitor className="h-6 w-6 text-primary" />
           Appearance
         </h3>
-        <p className="text-sm text-muted-foreground mb-6">
+        <p className="text-sm text-muted-foreground">
           Customize the look and feel of the application
         </p>
-        <div className="space-y-4">
-          <div>
-            <label className="text-sm font-medium mb-3 block">Theme Selection</label>
-            <div className="grid grid-cols-3 gap-3">
+      </div>
+      
+      <div className="space-y-8">
+        <div className="bg-card rounded-lg border p-6">
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium mb-3 block">Theme Selection</label>
+              <div className="grid grid-cols-3 gap-3">
               {themeOptions.map((option) => {
                 const Icon = option.icon;
                 const isSelected = theme === option.value;
@@ -154,41 +160,42 @@ function GeneralSettings({ theme, setTheme, themeOptions }: {
                   </button>
                 );
               })}
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <div className="bg-card rounded-lg border p-6">
-        <h3 className="text-lg font-semibold mb-2 flex items-center gap-2">
-          <Settings className="h-5 w-5 text-primary" />
-          Performance
-        </h3>
-        <p className="text-sm text-muted-foreground mb-6">
-          Configure performance and behavior settings
-        </p>
-        <div className="space-y-4">
-          <label className="flex items-center gap-3 cursor-pointer p-3 rounded-md hover:bg-muted/30 transition-colors">
-            <Checkbox defaultChecked />
-            <div className="flex flex-col">
-              <span className="text-sm font-medium">Enable hardware acceleration</span>
-              <span className="text-xs text-muted-foreground">Use GPU for faster processing</span>
-            </div>
-          </label>
-          <label className="flex items-center gap-3 cursor-pointer p-3 rounded-md hover:bg-muted/30 transition-colors">
-            <Checkbox defaultChecked />
-            <div className="flex flex-col">
-              <span className="text-sm font-medium">Auto-save progress</span>
-              <span className="text-xs text-muted-foreground">Automatically save your work</span>
-            </div>
-          </label>
-          <label className="flex items-center gap-3 cursor-pointer p-3 rounded-md hover:bg-muted/30 transition-colors">
-            <Checkbox />
-            <div className="flex flex-col">
-              <span className="text-sm font-medium">Reduce animations</span>
-              <span className="text-xs text-muted-foreground">Improve performance on slower devices</span>
-            </div>
-          </label>
+        <div className="bg-card rounded-lg border p-6">
+          <h4 className="text-lg font-semibold mb-2 flex items-center gap-2">
+            <Settings className="h-5 w-5 text-primary" />
+            Performance
+          </h4>
+          <p className="text-sm text-muted-foreground mb-6">
+            Configure performance and behavior settings
+          </p>
+          <div className="space-y-4">
+            <label className="flex items-center gap-3 cursor-pointer p-3 rounded-md hover:bg-muted/30 transition-colors">
+              <Checkbox defaultChecked />
+              <div className="flex flex-col">
+                <span className="text-sm font-medium">Enable hardware acceleration</span>
+                <span className="text-xs text-muted-foreground">Use GPU for faster processing</span>
+              </div>
+            </label>
+            <label className="flex items-center gap-3 cursor-pointer p-3 rounded-md hover:bg-muted/30 transition-colors">
+              <Checkbox defaultChecked />
+              <div className="flex flex-col">
+                <span className="text-sm font-medium">Auto-save progress</span>
+                <span className="text-xs text-muted-foreground">Automatically save your work</span>
+              </div>
+            </label>
+            <label className="flex items-center gap-3 cursor-pointer p-3 rounded-md hover:bg-muted/30 transition-colors">
+              <Checkbox />
+              <div className="flex flex-col">
+                <span className="text-sm font-medium">Reduce animations</span>
+                <span className="text-xs text-muted-foreground">Improve performance on slower devices</span>
+              </div>
+            </label>
+          </div>
         </div>
       </div>
     </div>
@@ -199,94 +206,106 @@ function ShortcutsSettings() {
   const shortcutCategories = Object.entries(getShortcutCategories());
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h3 className="text-lg font-medium mb-4">Keyboard Shortcuts</h3>
-        <p className="text-sm text-muted-foreground mb-6">
+    <div className="max-h-[calc(90vh-200px)] overflow-y-auto pr-2">
+      <div className="sticky top-0 bg-background/95 backdrop-blur-sm pb-4 mb-6 border-b border-border/30 z-10">
+        <h3 className="text-xl font-bold mb-2 flex items-center gap-2 text-foreground">
+          <Keyboard className="h-6 w-6 text-primary" />
+          Keyboard Shortcuts
+        </h3>
+        <p className="text-sm text-muted-foreground">
           Customize keyboard shortcuts to improve your workflow.
         </p>
       </div>
 
-      {shortcutCategories.map(([category, shortcuts]) => (
-        <div key={category} className="bg-card rounded-lg border p-4">
-          <h4 className="font-semibold mb-4 text-primary">{category}</h4>
-          <div className="space-y-3">
-            {shortcuts.map((shortcut) => (
-              <div key={shortcut.shortcutKey} className="flex items-center justify-between p-3 rounded-md bg-muted/30 hover:bg-muted/50 transition-colors">
-                <div className="flex flex-col">
-                  <span className="text-sm font-medium">{shortcut.description}</span>
-                  <span className="text-xs text-muted-foreground">Key combination</span>
+      <div className="space-y-4">
+        {shortcutCategories.map(([category, shortcuts]) => (
+          <div key={category} className="bg-card rounded-lg border overflow-hidden">
+            <div className="bg-primary/5 px-4 py-3 border-b border-border/30">
+              <h4 className="font-semibold text-primary text-sm">{category}</h4>
+            </div>
+            <div className="divide-y divide-border/30">
+              {shortcuts.map((shortcut) => (
+                <div key={shortcut.shortcutKey} className="flex items-center justify-between p-3 hover:bg-muted/30 transition-colors">
+                  <div className="flex flex-col min-w-0 flex-1 mr-4">
+                    <span className="text-sm font-medium truncate">{shortcut.description}</span>
+                    <span className="text-xs text-muted-foreground">Press to execute</span>
+                  </div>
+                  <kbd className="px-2 py-1 bg-muted/80 border border-border/50 rounded text-xs font-mono text-muted-foreground shadow-sm whitespace-nowrap flex-shrink-0">
+                    {formatShortcut(shortcut)}
+                  </kbd>
                 </div>
-                <kbd className="px-3 py-2 bg-muted/80 border border-border/50 rounded-md text-sm font-mono text-muted-foreground shadow-sm">
-                  {formatShortcut(shortcut)}
-                </kbd>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }
 
 function OCRSettings() {
   return (
-    <div className="space-y-8">
-      <div className="bg-card rounded-lg border p-6">
-        <h3 className="text-lg font-semibold mb-2 flex items-center gap-2">
-          <Eye className="h-5 w-5 text-primary" />
+    <div className="max-h-[calc(90vh-200px)] overflow-y-auto pr-2">
+      <div className="sticky top-0 bg-background/95 backdrop-blur-sm pb-4 mb-6 border-b border-border/30 z-10">
+        <h3 className="text-xl font-bold mb-2 flex items-center gap-2 text-foreground">
+          <Eye className="h-6 w-6 text-primary" />
           OCR Configuration
         </h3>
-        <p className="text-sm text-muted-foreground mb-6">
+        <p className="text-sm text-muted-foreground">
           Configure optical character recognition settings
         </p>
-        <div className="space-y-6">
-          <div>
-            <label className="text-sm font-medium mb-3 block">Default OCR Engine</label>
-            <select className="w-full p-3 border border-border bg-card text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent transition-colors">
-              <option>Tesseract</option>
-              <option>PaddleOCR</option>
-              <option>Auto (Best Available)</option>
-            </select>
-            <p className="text-xs text-muted-foreground mt-2">Choose the OCR engine for text recognition</p>
-          </div>
-          
-          <div>
-            <label className="text-sm font-medium mb-3 block">Default Language</label>
-            <select className="w-full p-3 border border-border bg-card text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent transition-colors">
-              <option>English</option>
-              <option>Spanish</option>
-              <option>French</option>
-              <option>German</option>
-              <option>Auto-detect</option>
-            </select>
-            <p className="text-xs text-muted-foreground mt-2">Primary language for text recognition</p>
-          </div>
+      </div>
+      
+      <div className="space-y-8">
+        <div className="bg-card rounded-lg border p-6">
+          <div className="space-y-6">
+            <div>
+              <label className="text-sm font-medium mb-3 block">Default OCR Engine</label>
+              <select className="w-full p-3 border border-border bg-card text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent transition-colors">
+                <option>Tesseract</option>
+                <option>PaddleOCR</option>
+                <option>Auto (Best Available)</option>
+              </select>
+              <p className="text-xs text-muted-foreground mt-2">Choose the OCR engine for text recognition</p>
+            </div>
+            
+            <div>
+              <label className="text-sm font-medium mb-3 block">Default Language</label>
+              <select className="w-full p-3 border border-border bg-card text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent transition-colors">
+                <option>English</option>
+                <option>Spanish</option>
+                <option>French</option>
+                <option>German</option>
+                <option>Auto-detect</option>
+              </select>
+              <p className="text-xs text-muted-foreground mt-2">Primary language for text recognition</p>
+            </div>
 
-          <div>
-            <label className="text-sm font-medium mb-3 block">Image Processing</label>
-            <div className="space-y-3">
-              <label className="flex items-center gap-3 cursor-pointer p-3 rounded-md hover:bg-muted/30 transition-colors">
-                <Checkbox defaultChecked />
-                <div className="flex flex-col">
-                  <span className="text-sm font-medium">Auto-enhance image contrast</span>
-                  <span className="text-xs text-muted-foreground">Improve text clarity automatically</span>
-                </div>
-              </label>
-              <label className="flex items-center gap-3 cursor-pointer p-3 rounded-md hover:bg-muted/30 transition-colors">
-                <Checkbox defaultChecked />
-                <div className="flex flex-col">
-                  <span className="text-sm font-medium">Apply noise reduction</span>
-                  <span className="text-xs text-muted-foreground">Remove image artifacts and noise</span>
-                </div>
-              </label>
-              <label className="flex items-center gap-3 cursor-pointer p-3 rounded-md hover:bg-muted/30 transition-colors">
-                <Checkbox />
-                <div className="flex flex-col">
-                  <span className="text-sm font-medium">Preserve original image</span>
-                  <span className="text-xs text-muted-foreground">Keep a copy of the original file</span>
-                </div>
-              </label>
+            <div>
+              <label className="text-sm font-medium mb-3 block">Image Processing</label>
+              <div className="space-y-3">
+                <label className="flex items-center gap-3 cursor-pointer p-3 rounded-md hover:bg-muted/30 transition-colors">
+                  <Checkbox defaultChecked />
+                  <div className="flex flex-col">
+                    <span className="text-sm font-medium">Auto-enhance image contrast</span>
+                    <span className="text-xs text-muted-foreground">Improve text clarity automatically</span>
+                  </div>
+                </label>
+                <label className="flex items-center gap-3 cursor-pointer p-3 rounded-md hover:bg-muted/30 transition-colors">
+                  <Checkbox defaultChecked />
+                  <div className="flex flex-col">
+                    <span className="text-sm font-medium">Apply noise reduction</span>
+                    <span className="text-xs text-muted-foreground">Remove image artifacts and noise</span>
+                  </div>
+                </label>
+                <label className="flex items-center gap-3 cursor-pointer p-3 rounded-md hover:bg-muted/30 transition-colors">
+                  <Checkbox />
+                  <div className="flex flex-col">
+                    <span className="text-sm font-medium">Preserve original image</span>
+                    <span className="text-xs text-muted-foreground">Keep a copy of the original file</span>
+                  </div>
+                </label>
+              </div>
             </div>
           </div>
         </div>
@@ -297,69 +316,74 @@ function OCRSettings() {
 
 function GrammarSettings() {
   return (
-    <div className="space-y-8">
-      <div className="bg-card rounded-lg border p-6">
-        <h3 className="text-lg font-semibold mb-2 flex items-center gap-2">
-          <Globe className="h-5 w-5 text-primary" />
+    <div className="max-h-[calc(90vh-200px)] overflow-y-auto pr-2">
+      <div className="sticky top-0 bg-background/95 backdrop-blur-sm pb-4 mb-6 border-b border-border/30 z-10">
+        <h3 className="text-xl font-bold mb-2 flex items-center gap-2 text-foreground">
+          <Globe className="h-6 w-6 text-primary" />
           Grammar Checking
         </h3>
-        <p className="text-sm text-muted-foreground mb-6">
+        <p className="text-sm text-muted-foreground">
           Configure grammar and style checking preferences
         </p>
-        <div className="space-y-6">
-          <div>
-            <label className="text-sm font-medium mb-3 block">Grammar Provider</label>
-            <select className="w-full p-3 border border-border bg-card text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent transition-colors">
-              <option>Hybrid (Online + Offline)</option>
-              <option>LanguageTool (Online)</option>
-              <option>Offline Rules Only</option>
-            </select>
-            <p className="text-xs text-muted-foreground mt-2">Choose how grammar checking is performed</p>
-          </div>
-          
-          <div>
-            <label className="text-sm font-medium mb-3 block">Language</label>
-            <select className="w-full p-3 border border-border bg-card text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent transition-colors">
-              <option>English (US)</option>
-              <option>English (UK)</option>
-              <option>Spanish</option>
-              <option>French</option>
-              <option>German</option>
-            </select>
-            <p className="text-xs text-muted-foreground mt-2">Language variant for grammar rules</p>
-          </div>
+      </div>
+      
+      <div className="space-y-8">
+        <div className="bg-card rounded-lg border p-6">
+          <div className="space-y-6">
+            <div>
+              <label className="text-sm font-medium mb-3 block">Grammar Provider</label>
+              <select className="w-full p-3 border border-border bg-card text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent transition-colors">
+                <option>Hybrid (Online + Offline)</option>
+                <option>LanguageTool (Online)</option>
+                <option>Offline Rules Only</option>
+              </select>
+              <p className="text-xs text-muted-foreground mt-2">Choose how grammar checking is performed</p>
+            </div>
+            
+            <div>
+              <label className="text-sm font-medium mb-3 block">Language</label>
+              <select className="w-full p-3 border border-border bg-card text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent transition-colors">
+                <option>English (US)</option>
+                <option>English (UK)</option>
+                <option>Spanish</option>
+                <option>French</option>
+                <option>German</option>
+              </select>
+              <p className="text-xs text-muted-foreground mt-2">Language variant for grammar rules</p>
+            </div>
 
-          <div>
-            <label className="text-sm font-medium mb-3 block">Checking Options</label>
-            <div className="space-y-3">
-              <label className="flex items-center gap-3 cursor-pointer p-3 rounded-md hover:bg-muted/30 transition-colors">
-                <Checkbox defaultChecked />
-                <div className="flex flex-col">
-                  <span className="text-sm font-medium">Enable style suggestions</span>
-                  <span className="text-xs text-muted-foreground">Get recommendations for better writing style</span>
-                </div>
-              </label>
-              <label className="flex items-center gap-3 cursor-pointer p-3 rounded-md hover:bg-muted/30 transition-colors">
-                <Checkbox />
-                <div className="flex flex-col">
-                  <span className="text-sm font-medium">Enable picky rules</span>
-                  <span className="text-xs text-muted-foreground">Apply strict grammar and style rules</span>
-                </div>
-              </label>
-              <label className="flex items-center gap-3 cursor-pointer p-3 rounded-md hover:bg-muted/30 transition-colors">
-                <Checkbox defaultChecked />
-                <div className="flex flex-col">
-                  <span className="text-sm font-medium">Auto-correct common mistakes</span>
-                  <span className="text-xs text-muted-foreground">Automatically fix obvious errors</span>
-                </div>
-              </label>
-              <label className="flex items-center gap-3 cursor-pointer p-3 rounded-md hover:bg-muted/30 transition-colors">
-                <Checkbox defaultChecked />
-                <div className="flex flex-col">
-                  <span className="text-sm font-medium">Offline fallback</span>
-                  <span className="text-xs text-muted-foreground">Use offline grammar checking when online is unavailable</span>
-                </div>
-              </label>
+            <div>
+              <label className="text-sm font-medium mb-3 block">Checking Options</label>
+              <div className="space-y-3">
+                <label className="flex items-center gap-3 cursor-pointer p-3 rounded-md hover:bg-muted/30 transition-colors">
+                  <Checkbox defaultChecked />
+                  <div className="flex flex-col">
+                    <span className="text-sm font-medium">Enable style suggestions</span>
+                    <span className="text-xs text-muted-foreground">Get recommendations for better writing style</span>
+                  </div>
+                </label>
+                <label className="flex items-center gap-3 cursor-pointer p-3 rounded-md hover:bg-muted/30 transition-colors">
+                  <Checkbox />
+                  <div className="flex flex-col">
+                    <span className="text-sm font-medium">Enable picky rules</span>
+                    <span className="text-xs text-muted-foreground">Apply strict grammar and style rules</span>
+                  </div>
+                </label>
+                <label className="flex items-center gap-3 cursor-pointer p-3 rounded-md hover:bg-muted/30 transition-colors">
+                  <Checkbox defaultChecked />
+                  <div className="flex flex-col">
+                    <span className="text-sm font-medium">Auto-correct common mistakes</span>
+                    <span className="text-xs text-muted-foreground">Automatically fix obvious errors</span>
+                  </div>
+                </label>
+                <label className="flex items-center gap-3 cursor-pointer p-3 rounded-md hover:bg-muted/30 transition-colors">
+                  <Checkbox defaultChecked />
+                  <div className="flex flex-col">
+                    <span className="text-sm font-medium">Offline fallback</span>
+                    <span className="text-xs text-muted-foreground">Use offline grammar checking when online is unavailable</span>
+                  </div>
+                </label>
+              </div>
             </div>
           </div>
         </div>

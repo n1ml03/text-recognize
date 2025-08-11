@@ -713,7 +713,7 @@ export function ExportHistoryPanel() {
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-background border rounded-lg shadow-lg w-full max-w-4xl max-h-[90vh] overflow-hidden"
+              className="bg-background border rounded-lg shadow-lg w-full max-w-4xl max-h-[100vh] overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}

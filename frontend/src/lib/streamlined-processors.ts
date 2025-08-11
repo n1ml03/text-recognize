@@ -39,6 +39,9 @@ export interface TesseractResult {
     text: string;
     confidence: number;
     blocks?: TesseractBlock[];
+    words?: WordDetail[];
+    lines?: any[];
+    paragraphs?: any[];
   };
 }
 
@@ -108,7 +111,7 @@ export class StreamlinedWebOCR {
     try {
       const Tesseract = await import('tesseract.js');
 
-      // Create worker with optimized settings for v6
+      // Create worker with correct v6 API
       this.worker = await Tesseract.createWorker('eng', 1, {
         logger: (m: { status: string; progress: number }) => {
           if (process.env.NODE_ENV === 'development') {
@@ -117,9 +120,21 @@ export class StreamlinedWebOCR {
         },
       });
 
+      // Initialize the worker
+      await this.worker.loadLanguage('eng');
+      await this.worker.initialize('eng');
+
+      // Set parameters for better accuracy
+      await this.worker.setParameters({
+        tessedit_pageseg_mode: '6', // Uniform block of text
+        tessedit_ocr_engine_mode: '3', // Default, based on what is available
+      });
+
       this.isInitialized = true;
+      console.log('Tesseract.js worker initialized successfully');
     } catch (error) {
       this.initializationPromise = null;
+      this.isInitialized = false;
       console.error('Failed to initialize Tesseract.js:', error);
       throw new Error(`OCR initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -127,6 +142,7 @@ export class StreamlinedWebOCR {
 
   static async processFile(file: File): Promise<StreamlinedProcessingResult> {
     const startTime = Date.now();
+    console.log('Starting OCR processing for file:', file.name, 'Size:', file.size, 'Type:', file.type);
 
     try {
       // Validate file size
@@ -136,6 +152,7 @@ export class StreamlinedWebOCR {
 
       // Handle direct text extraction for text files
       if (file.name.endsWith('.txt') || file.type === 'text/plain') {
+        console.log('Processing as text file');
         const text = await file.text();
         return {
           text,
@@ -146,25 +163,34 @@ export class StreamlinedWebOCR {
         };
       }
 
+      console.log('Initializing Tesseract.js worker...');
       await this.initialize();
 
       // Get image data for OCR processing
+      console.log('Converting file to image data...');
       const imageData = await this.getImageDataFromFile(file);
 
       // Process with Tesseract using optimized settings for v6
+      console.log('Starting OCR recognition...');
       const result = await this.performOCR(imageData);
+      console.log('OCR recognition completed. Text length:', result.data.text?.length || 0);
 
       // Extract and validate word details
       const wordDetails = this.extractWordDetails(result);
+      console.log('Extracted word details:', wordDetails.length, 'words');
 
-      return {
+      const finalResult = {
         text: result.data.text || '',
         confidence: Math.max(0, Math.min(1, (result.data.confidence || 0) / 100)),
         engine_used: 'Tesseract.js v6',
         processing_time: Date.now() - startTime,
         word_details: wordDetails,
       };
+
+      console.log('OCR processing completed successfully:', finalResult);
+      return finalResult;
     } catch (error) {
+      console.error('OCR processing failed:', error);
       throw new Error(`OCR processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
@@ -204,64 +230,105 @@ export class StreamlinedWebOCR {
   }
 
   private static async performOCR(imageData: string): Promise<TesseractResult> {
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new Error('OCR processing timed out'));
-      }, OCR_CONFIG.WORKER_TIMEOUT);
+    if (!this.worker) {
+      throw new Error('Tesseract worker not initialized');
+    }
 
-      this.worker.recognize(imageData, {}, {
-        text: true,   // Always enabled in v6
-        blocks: true  // Enable for word-level details
-      }).then((result: TesseractResult) => {
-        clearTimeout(timeout);
-        resolve(result);
-      }).catch((error: Error) => {
-        clearTimeout(timeout);
-        reject(error);
-      });
-    });
+    try {
+      // Use correct v6 API - recognize method returns a promise directly
+      const result = await Promise.race([
+        this.worker.recognize(imageData),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('OCR processing timed out')), OCR_CONFIG.WORKER_TIMEOUT)
+        )
+      ]);
+
+      return result as TesseractResult;
+    } catch (error) {
+      console.error('OCR processing error:', error);
+      throw new Error(`OCR processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
   private static extractWordDetails(result: TesseractResult): WordDetail[] {
     const wordDetails: WordDetail[] = [];
 
-    if (!result.data.blocks) {
-      return wordDetails;
-    }
+    try {
+      // In Tesseract.js v6, word details are in the blocks structure
+      if (result.data && result.data.blocks) {
+        result.data.blocks.forEach((block: any) => {
+          if (!block.paragraphs) return;
 
-    // Safely extract words from the v6 blocks structure
-    result.data.blocks.forEach((block) => {
-      if (!block.paragraphs) return;
+          block.paragraphs.forEach((paragraph: any) => {
+            if (!paragraph.lines) return;
 
-      block.paragraphs.forEach((paragraph) => {
-        if (!paragraph.lines) return;
+            paragraph.lines.forEach((line: any) => {
+              if (!line.words) return;
 
-        paragraph.lines.forEach((line) => {
-          if (!line.words) return;
-
-          line.words.forEach((word) => {
-            // Validate and transform word data
-            if (this.isValidWordDetail(word)) {
-              wordDetails.push(word);
-            }
+              line.words.forEach((word: any) => {
+                if (word.text && word.text.trim()) {
+                  wordDetails.push({
+                    text: word.text.trim(),
+                    confidence: Math.max(0, Math.min(1, (word.confidence || 0) / 100)),
+                    bbox: word.bbox ? {
+                      x0: word.bbox.x0 || 0,
+                      y0: word.bbox.y0 || 0,
+                      x1: word.bbox.x1 || 0,
+                      y1: word.bbox.y1 || 0,
+                    } : undefined,
+                  });
+                }
+              });
+            });
           });
         });
-      });
-    });
+      }
+
+      // If no word details found, create basic ones from the text
+      if (wordDetails.length === 0 && result.data && result.data.text) {
+        const words = result.data.text.trim().split(/\s+/).filter(word => word.length > 0);
+        const confidence = Math.max(0, Math.min(1, (result.data.confidence || 0) / 100));
+
+        words.forEach((word, index) => {
+          wordDetails.push({
+            text: word,
+            confidence,
+            bbox: {
+              x0: index * 50,
+              y0: 10,
+              x1: (index + 1) * 50,
+              y1: 30,
+            },
+          });
+        });
+      }
+    } catch (error) {
+      console.warn('Failed to extract word details:', error);
+
+      // Fallback: create basic word details from text
+      if (result.data && result.data.text) {
+        const words = result.data.text.trim().split(/\s+/).filter(word => word.length > 0);
+        const confidence = Math.max(0, Math.min(1, (result.data.confidence || 0) / 100));
+
+        words.forEach((word, index) => {
+          wordDetails.push({
+            text: word,
+            confidence,
+            bbox: {
+              x0: index * 50,
+              y0: 10,
+              x1: (index + 1) * 50,
+              y1: 30,
+            },
+          });
+        });
+      }
+    }
 
     return wordDetails;
   }
 
-  private static isValidWordDetail(word: unknown): word is WordDetail {
-    return (
-      typeof word === 'object' &&
-      word !== null &&
-      'text' in word &&
-      typeof (word as any).text === 'string' &&
-      'confidence' in word &&
-      typeof (word as any).confidence === 'number'
-    );
-  }
+
 
   private static async fileToDataURL(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
@@ -279,36 +346,84 @@ export class StreamlinedWebOCR {
       const video = document.createElement('video');
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
-      
+
       if (!ctx) {
         reject(new Error('Canvas not available'));
         return;
       }
-      
+
+      let hasResolved = false;
+
+      const cleanup = () => {
+        if (video.src) {
+          URL.revokeObjectURL(video.src);
+        }
+      };
+
+      const resolveOnce = (dataURL: string) => {
+        if (!hasResolved) {
+          hasResolved = true;
+          cleanup();
+          resolve(dataURL);
+        }
+      };
+
+      const rejectOnce = (error: Error) => {
+        if (!hasResolved) {
+          hasResolved = true;
+          cleanup();
+          reject(error);
+        }
+      };
+
       video.onloadedmetadata = () => {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        video.currentTime = 1; // Get frame at 1 second
+        try {
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          video.currentTime = Math.min(1, video.duration / 2); // Get frame at 1 second or middle
+        } catch (error) {
+          rejectOnce(new Error('Failed to set video frame time'));
+        }
       };
-      
+
       video.onseeked = () => {
-        ctx.drawImage(video, 0, 0);
-        const dataURL = canvas.toDataURL('image/png');
-        URL.revokeObjectURL(video.src);
-        resolve(dataURL);
+        try {
+          ctx.drawImage(video, 0, 0);
+          const dataURL = canvas.toDataURL('image/png');
+          resolveOnce(dataURL);
+        } catch (error) {
+          rejectOnce(new Error('Failed to extract video frame'));
+        }
       };
-      
-      video.onerror = () => reject(new Error('Video processing failed'));
-      video.src = URL.createObjectURL(file);
-      video.load();
+
+      video.onerror = () => rejectOnce(new Error('Video loading failed'));
+      video.onabort = () => rejectOnce(new Error('Video loading aborted'));
+
+      // Set timeout for video processing
+      setTimeout(() => {
+        rejectOnce(new Error('Video frame extraction timed out'));
+      }, 10000);
+
+      try {
+        video.src = URL.createObjectURL(file);
+        video.load();
+      } catch (error) {
+        rejectOnce(new Error('Failed to create video object URL'));
+      }
     });
   }
 
   static async cleanup(): Promise<void> {
-    if (this.worker) {
-      await this.worker.terminate();
-      this.worker = null;
-      this.isInitialized = false;
+    try {
+      if (this.worker) {
+        await this.worker.terminate();
+        this.worker = null;
+        this.isInitialized = false;
+        this.initializationPromise = null;
+        console.log('Tesseract.js worker terminated successfully');
+      }
+    } catch (error) {
+      console.error('Error terminating Tesseract.js worker:', error);
     }
   }
 }
@@ -655,9 +770,9 @@ export class StreamlinedProcessor {
       };
     } else {
       // Use streamlined web processing
-      const webFile = (fileInfo as { webFile?: File }).webFile;
+      const webFile = (fileInfo as any).webFile;
       if (!webFile) {
-        throw new Error('File not available for processing');
+        throw new Error('File not available for processing in web environment');
       }
 
       return await StreamlinedWebOCR.processFile(webFile);

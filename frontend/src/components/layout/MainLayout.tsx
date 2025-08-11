@@ -298,7 +298,7 @@ export function MainLayout() {
               className="space-y-2"
             >
               <p className="text-xs font-medium text-muted-foreground">Appearance</p>
-              <div className="grid grid-cols-3 gap-1">
+               <div className="grid grid-cols-3 gap-1">
                 {['light', 'dark', 'system'].map((themeOption) => {
                   const isSelected = theme === themeOption;
                   const icons = {
@@ -421,7 +421,7 @@ export function MainLayout() {
           )}
         </AnimatePresence>
 
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 h-0 overflow-hidden">
           <MainWorkspace 
             currentView={currentView}
             showSettings={showSettings}
@@ -456,7 +456,7 @@ function KeyboardHelpModal({ onClose }: { onClose: () => void }) {
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.9, opacity: 0 }}
-        className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/90 border border-border rounded-lg shadow-lg w-full max-w-2xl max-h-[80vh] overflow-hidden"
+        className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/90 border border-border rounded-lg shadow-lg w-full max-w-2xl max-h-[100vh] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-4 border-b border-border/50 bg-card/30">
