@@ -56,7 +56,7 @@ export function MainWorkspace({ currentView, showSettings, onSettingsClose }: Ma
 
 function MainView() {
   return (
-    <div className="h-full flex flex-col lg:flex-row mobile-container">
+    <div className="h-full flex flex-col lg:flex-row">
       {/* Mobile-first: Controls panel stacks on top */}
       <div className="
         w-full lg:w-80 xl:w-96
@@ -84,7 +84,7 @@ function MainView() {
 
 function BatchView() {
   return (
-    <div className="h-full p-3 sm:p-4 lg:p-6 mobile-container">
+    <div className="h-full p-3 sm:p-4 lg:p-6">
       <BatchProcessingPanel />
     </div>
   );
@@ -92,7 +92,7 @@ function BatchView() {
 
 function HistoryView() {
   return (
-    <div className="p-3 sm:p-4 lg:p-6 mobile-container">
+    <div className="h-full p-3 sm:p-4 lg:p-6">
       <ExportHistoryPanel />
     </div>
   );
