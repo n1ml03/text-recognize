@@ -1,0 +1,95 @@
+{
+  "service": {
+    "name": "OCR Grammar Assistant",
+    "version": "1.0.0",
+    "description": "Network-accessible OCR and Grammar checking service"
+  },
+  "network": {
+    "backend": {
+      "host": "0.0.0.0",
+      "port": 8000,
+      "protocol": "http",
+      "endpoints": {
+        "health": "/health",
+        "network_info": "/network/info",
+        "ocr_image": "/ocr/image",
+        "ocr_video": "/ocr/video",
+        "ocr_batch": "/ocr/batch",
+        "document_extract": "/extract/document",
+        "supported_formats": "/supported_formats",
+        "metrics": "/metrics"
+      }
+    },
+    "frontend": {
+      "development": {
+        "host": "0.0.0.0",
+        "port": 5173,
+        "protocol": "http"
+      },
+      "production": {
+        "host": "0.0.0.0", 
+        "port": 4173,
+        "protocol": "http"
+      }
+    }
+  },
+  "cors": {
+    "enabled": true,
+    "allow_origins": ["*"],
+    "allow_methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    "allow_headers": ["*"],
+    "allow_credentials": true
+  },
+  "security": {
+    "network_scope": "local",
+    "authentication": false,
+    "https": false,
+    "firewall_ports": [5173, 4173, 8000]
+  },
+  "capabilities": [
+    "image_ocr",
+    "video_ocr",
+    "document_extraction", 
+    "batch_processing",
+    "grammar_checking",
+    "text_export"
+  ],
+  "supported_formats": {
+    "images": [".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".webp"],
+    "videos": [".mp4", ".avi", ".mov", ".mkv", ".wmv", ".flv"],
+    "documents": [".pdf", ".docx", ".txt", ".rtf"]
+  },
+  "deployment": {
+    "docker": {
+      "backend_ports": ["8000:8000"],
+      "frontend_ports": ["5173:5173", "4173:4173"],
+      "network_mode": "bridge"
+    },
+    "systemd": {
+      "backend_service": "ocr-backend.service",
+      "frontend_service": "ocr-frontend.service"
+    }
+  },
+  "environment_variables": {
+    "backend": {
+      "BACKEND_HOST": "0.0.0.0",
+      "BACKEND_PORT": "8000",
+      "BACKEND_URL": "http://localhost:8000"
+    },
+    "frontend": {
+      "VITE_BACKEND_URL": "http://localhost:8000",
+      "VITE_PORT": "5173"
+    },
+    "tauri": {
+      "BACKEND_URL": "http://localhost:8000",
+      "BACKEND_HOST": "0.0.0.0",
+      "BACKEND_PORT": "8000"
+    }
+  },
+  "scripts": {
+    "start_backend": "cd python_backend && python main.py --host 0.0.0.0 --port 8000",
+    "start_frontend_dev": "cd frontend && bun run dev:server",
+    "start_frontend_prod": "cd frontend && bun run start:network",
+    "test_network": "curl http://localhost:8000/health && curl http://localhost:5173"
+  }
+}

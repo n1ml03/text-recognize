@@ -1,6 +1,7 @@
-use crate::services::{ExportRecord, CSVExporterService};
+use crate::services::{ExportRecord, CSVExporterService, OCRService, GrammarService, PreprocessingOptions};
 use anyhow::Result;
 use std::path::Path;
+use std::fs;
 use tokio::sync::Mutex;
 
 // Batch processing state
@@ -76,16 +77,38 @@ pub async fn batch_process_files(
     drop(state);
     
     let mut results = Vec::new();
-    
-    for (index, file_path) in file_paths.iter().enumerate() {
+
+    // Group files by size for optimized processing
+    let (small_files, large_files) = group_files_by_size(&file_paths, 1024 * 1024).await; // 1MB threshold
+
+    // Process small files in batches for better performance
+    if !small_files.is_empty() {
+        log::info!("Processing {} small files in batch mode", small_files.len());
+        match process_small_files_batch(&small_files, auto_correct, &batch_state).await {
+            Ok(batch_results) => {
+                results.extend(batch_results);
+            }
+            Err(e) => {
+                log::error!("Batch processing failed: {}", e);
+                // Fallback to individual processing for small files
+                for file_path in &small_files {
+                    let result = process_single_file_batch(file_path, auto_correct).await;
+                    results.push(result);
+                }
+            }
+        }
+    }
+
+    // Process large files individually
+    for (index, file_path) in large_files.iter().enumerate() {
         // Update current file index
         {
             let mut state = batch_state.lock().await;
-            state.current_file_index = index;
+            state.current_file_index = small_files.len() + index;
         }
-        
+
         let result = process_single_file_batch(file_path, auto_correct).await;
-        
+
         // Update counters
         {
             let mut state = batch_state.lock().await;
@@ -95,7 +118,7 @@ pub async fn batch_process_files(
                 state.failed_files += 1;
             }
         }
-        
+
         results.push(result);
     }
     
@@ -272,23 +295,125 @@ async fn process_file_internal(
     file_path: &str,
     auto_correct: bool,
 ) -> Result<(String, String, usize, f32)> {
-    // This is a simplified version - in reality, you'd use the actual OCR and Grammar services
-    // For now, just return placeholder data
-    
-    // In a real implementation, you would:
-    // 1. Use OCRService to extract text from the file
-    // 2. Use GrammarService to check and correct the text
-    // 3. Return the actual results
-    
-    // Placeholder implementation
-    let original_text = format!("Extracted text from {}", file_path);
-    let corrected_text = if auto_correct {
-        format!("Corrected text from {}", file_path)
+    // Initialize services
+    let mut ocr_service = OCRService::new()
+        .map_err(|e| anyhow::anyhow!("Failed to initialize OCR service: {}", e))?;
+
+    let grammar_service = GrammarService::new();
+
+    // Extract text using OCR
+    let ocr_result = ocr_service
+        .extract_text_from_image(file_path, Some(PreprocessingOptions::default()))
+        .await
+        .map_err(|e| anyhow::anyhow!("OCR processing failed: {}", e))?;
+
+    let original_text = ocr_result.text;
+    let confidence = ocr_result.confidence;
+
+    // Apply grammar correction if requested
+    let (corrected_text, error_count) = if auto_correct && !original_text.is_empty() {
+        match grammar_service.check_text(&original_text, true).await {
+            Ok(grammar_result) => (grammar_result.corrected_text, grammar_result.error_count),
+            Err(e) => {
+                log::warn!("Grammar check failed for {}: {}", file_path, e);
+                (original_text.clone(), 0)
+            }
+        }
     } else {
-        original_text.clone()
+        (original_text.clone(), 0)
     };
-    let error_count = if auto_correct { 2 } else { 0 };
-    let confidence = 0.95;
-    
+
     Ok((original_text, corrected_text, error_count, confidence))
+}
+
+async fn group_files_by_size(file_paths: &[String], size_threshold: u64) -> (Vec<String>, Vec<String>) {
+    let mut small_files = Vec::new();
+    let mut large_files = Vec::new();
+
+    for file_path in file_paths {
+        if let Ok(metadata) = fs::metadata(file_path) {
+            if metadata.len() <= size_threshold {
+                small_files.push(file_path.clone());
+            } else {
+                large_files.push(file_path.clone());
+            }
+        } else {
+            // If we can't get metadata, treat as large file for safety
+            large_files.push(file_path.clone());
+        }
+    }
+
+    (small_files, large_files)
+}
+
+async fn process_small_files_batch(
+    file_paths: &[String],
+    auto_correct: bool,
+    batch_state: &tauri::State<'_, BatchStateType>,
+) -> Result<Vec<BatchProcessingResult>, String> {
+    let mut ocr_service = OCRService::new()
+        .map_err(|e| format!("Failed to initialize OCR service: {}", e))?;
+
+    let grammar_service = GrammarService::new();
+
+    // Use batch OCR processing for small files
+    let batch_result = ocr_service
+        .extract_text_from_images_batch(
+            file_paths.to_vec(),
+            Some(PreprocessingOptions::default()),
+            1, // 1MB max file size for batch processing
+        )
+        .await
+        .map_err(|e| format!("Batch OCR processing failed: {}", e))?;
+
+    let mut results = Vec::new();
+
+    // Process each OCR result with grammar checking
+    for (index, ocr_result) in batch_result.results.iter().enumerate() {
+        let file_path = file_paths.get(index).unwrap_or(&"unknown".to_string()).clone();
+
+        let (corrected_text, error_count) = if auto_correct && !ocr_result.text.is_empty() {
+            match grammar_service.check_text(&ocr_result.text, true).await {
+                Ok(grammar_result) => (grammar_result.corrected_text, grammar_result.error_count),
+                Err(e) => {
+                    log::warn!("Grammar check failed for {}: {}", file_path, e);
+                    (ocr_result.text.clone(), 0)
+                }
+            }
+        } else {
+            (ocr_result.text.clone(), 0)
+        };
+
+        let batch_processing_result = BatchProcessingResult {
+            file_path,
+            success: !ocr_result.text.is_empty(),
+            original_text: ocr_result.text.clone(),
+            corrected_text,
+            grammar_error_count: error_count,
+            ocr_confidence: ocr_result.confidence,
+            processing_time: ocr_result.processing_time,
+            error_message: if ocr_result.text.is_empty() {
+                Some("No text extracted".to_string())
+            } else {
+                None
+            },
+        };
+
+        // Update batch state
+        {
+            let mut state = batch_state.lock().await;
+            if batch_processing_result.success {
+                state.completed_files += 1;
+            } else {
+                state.failed_files += 1;
+            }
+        }
+
+        results.push(batch_processing_result);
+    }
+
+    log::info!("Batch processing completed: {} files processed in {:.2}s",
+              batch_result.files_processed, batch_result.total_processing_time);
+
+    Ok(results)
 }

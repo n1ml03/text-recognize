@@ -13,10 +13,28 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
-  // Tauri expects a fixed port, fail if that port is not available
+  // Network configuration for maximum accessibility
   server: {
+    host: '0.0.0.0', // Bind to all network interfaces (IPv4)
     port: 5173,
     strictPort: true,
+    cors: true, // Enable CORS for cross-origin requests
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Origin, X-Requested-With, Content-Type, Accept, Authorization',
+    },
+  },
+  // Preview server configuration (for production builds)
+  preview: {
+    host: '0.0.0.0',
+    port: 4173,
+    cors: true,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Origin, X-Requested-With, Content-Type, Accept, Authorization',
+    },
   },
   // to make use of `TAURI_DEBUG` and other env variables
   // https://tauri.studio/v1/api/config#buildconfig.beforedevcommand

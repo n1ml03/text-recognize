@@ -2,72 +2,103 @@ import type { FileInfo } from './tauri-api';
 
 // Universal file interface that works in both web and desktop
 export interface UniversalFile {
-  name: string;
-  size: number;
-  type: string;
-  extension: string;
-  content?: ArrayBuffer | string;
-  webFile?: File; // For web environment
-  path?: string; // For desktop environment
+  readonly name: string;
+  readonly size: number;
+  readonly type: string;
+  readonly extension: string;
+  readonly content?: ArrayBuffer | string;
+  readonly webFile?: File; // For web environment
+  readonly path?: string; // For desktop environment
 }
 
-// Environment detection
+// File type constants for better type safety
+export const FILE_TYPES = {
+  IMAGE: 'Image',
+  VIDEO: 'Video',
+  DOCUMENT: 'Document',
+  PDF: 'Pdf',
+  UNKNOWN: 'Unknown'
+} as const;
+
+export type FileType = typeof FILE_TYPES[keyof typeof FILE_TYPES];
+
+// Supported file formats - using readonly arrays for immutability
+const SUPPORTED_FORMATS = {
+  IMAGE: ['png', 'jpg', 'jpeg', 'bmp', 'tiff', 'tif', 'gif', 'webp'] as const,
+  VIDEO: ['mp4', 'avi', 'mov', 'mkv', 'wmv', 'flv', 'm4v', '3gp', 'webm', 'ogv'] as const,
+  DOCUMENT: ['docx', 'doc', 'rtf', 'odt', 'txt'] as const,
+  PDF: ['pdf'] as const,
+} as const;
+
+// Environment detection with memoization for performance
+let _isWebEnv: boolean | null = null;
+let _isTauriEnv: boolean | null = null;
+
 export function isWebEnvironment(): boolean {
-  return typeof window !== 'undefined' && !window.__TAURI__;
+  if (_isWebEnv === null) {
+    _isWebEnv = typeof window !== 'undefined' && !window.__TAURI__;
+  }
+  return _isWebEnv;
 }
 
 export function isTauriEnvironment(): boolean {
-  return typeof window !== 'undefined' && window.__TAURI__ !== undefined;
+  if (_isTauriEnv === null) {
+    _isTauriEnv = typeof window !== 'undefined' && window.__TAURI__ !== undefined;
+  }
+  return _isTauriEnv;
 }
 
 // Web-compatible file processing utilities
 export class WebFileHandler {
-  static async readFileAsArrayBuffer(file: File): Promise<ArrayBuffer> {
+  // Generic file reader method to reduce code duplication
+  private static createFileReader<T>(
+    file: File,
+    readMethod: (reader: FileReader, file: File) => void
+  ): Promise<T> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as ArrayBuffer);
-      reader.onerror = () => reject(reader.error);
-      reader.readAsArrayBuffer(file);
+      reader.onload = () => resolve(reader.result as T);
+      reader.onerror = () => reject(reader.error || new Error('Failed to read file'));
+      readMethod(reader, file);
     });
+  }
+
+  static async readFileAsArrayBuffer(file: File): Promise<ArrayBuffer> {
+    return this.createFileReader<ArrayBuffer>(file, (reader, f) => reader.readAsArrayBuffer(f));
   }
 
   static async readFileAsText(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = () => reject(reader.error);
-      reader.readAsText(file);
-    });
+    return this.createFileReader<string>(file, (reader, f) => reader.readAsText(f));
   }
 
   static async readFileAsDataURL(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = () => reject(reader.error);
-      reader.readAsDataURL(file);
-    });
+    return this.createFileReader<string>(file, (reader, f) => reader.readAsDataURL(f));
   }
 
   static getFileExtension(fileName: string): string {
+    if (!fileName || typeof fileName !== 'string') return '';
     const lastDot = fileName.lastIndexOf('.');
     return lastDot > -1 ? fileName.substring(lastDot + 1).toLowerCase() : '';
   }
 
   static formatFileSize(bytes: number): string {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    if (!bytes || bytes === 0) return '0 Bytes';
+
+    const units = ['Bytes', 'KB', 'MB', 'GB', 'TB'] as const;
+    const base = 1024;
+    const unitIndex = Math.floor(Math.log(bytes) / Math.log(base));
+    const size = bytes / Math.pow(base, unitIndex);
+
+    return `${size.toFixed(unitIndex === 0 ? 0 : 2)} ${units[unitIndex]}`;
   }
 
   static convertWebFileToUniversal(file: File): UniversalFile {
+    const extension = this.getFileExtension(file.name);
     return {
       name: file.name,
       size: file.size,
       type: file.type,
-      extension: this.getFileExtension(file.name),
+      extension,
       webFile: file,
     };
   }
@@ -75,58 +106,63 @@ export class WebFileHandler {
 
 // Universal file API that works in both environments
 export class UniversalFileAPI {
-  // Supported formats (shared between web and desktop)
-  static getSupportedImageFormats(): string[] {
-    return ['png', 'jpg', 'jpeg', 'bmp', 'tiff', 'tif', 'gif', 'webp'];
+  // Cached format arrays for performance
+  private static _allFormats: readonly string[] | null = null;
+
+  // Supported formats (shared between web and desktop) - now using the constants
+  static getSupportedImageFormats(): readonly string[] {
+    return SUPPORTED_FORMATS.IMAGE;
   }
 
-  static getSupportedVideoFormats(): string[] {
-    return ['mp4', 'avi', 'mov', 'mkv', 'wmv', 'flv', 'm4v', '3gp', 'webm', 'ogv'];
+  static getSupportedVideoFormats(): readonly string[] {
+    return SUPPORTED_FORMATS.VIDEO;
   }
 
-  static getSupportedDocumentFormats(): string[] {
-    return ['docx', 'doc', 'rtf', 'odt', 'txt'];
+  static getSupportedDocumentFormats(): readonly string[] {
+    return SUPPORTED_FORMATS.DOCUMENT;
   }
 
-  static getSupportedPdfFormats(): string[] {
-    return ['pdf'];
+  static getSupportedPdfFormats(): readonly string[] {
+    return SUPPORTED_FORMATS.PDF;
   }
 
-  static getAllSupportedFormats(): string[] {
-    return [
-      ...this.getSupportedImageFormats(),
-      ...this.getSupportedVideoFormats(),
-      ...this.getSupportedDocumentFormats(),
-      ...this.getSupportedPdfFormats(),
-    ];
+  static getAllSupportedFormats(): readonly string[] {
+    if (!this._allFormats) {
+      this._allFormats = [
+        ...SUPPORTED_FORMATS.IMAGE,
+        ...SUPPORTED_FORMATS.VIDEO,
+        ...SUPPORTED_FORMATS.DOCUMENT,
+        ...SUPPORTED_FORMATS.PDF,
+      ];
+    }
+    return this._allFormats;
   }
 
-  // File validation
+  // File validation with better error handling
   static isValidFileType(fileName: string): boolean {
+    if (!fileName || typeof fileName !== 'string') return false;
     const extension = WebFileHandler.getFileExtension(fileName);
     return this.getAllSupportedFormats().includes(extension);
   }
 
-  static determineFileType(extension: string): 'Image' | 'Video' | 'Document' | 'Pdf' | 'Unknown' {
+  static determineFileType(extension: string): FileType {
+    if (!extension || typeof extension !== 'string') return FILE_TYPES.UNKNOWN;
+
     const ext = extension.toLowerCase();
-    
-    if (this.getSupportedImageFormats().includes(ext)) {
-      return 'Image';
-    } else if (this.getSupportedVideoFormats().includes(ext)) {
-      return 'Video';
-    } else if (this.getSupportedDocumentFormats().includes(ext)) {
-      return 'Document';
-    } else if (this.getSupportedPdfFormats().includes(ext)) {
-      return 'Pdf';
-    } else {
-      return 'Unknown';
-    }
+
+    // Use proper type checking with readonly arrays
+    if ((SUPPORTED_FORMATS.IMAGE as readonly string[]).includes(ext)) return FILE_TYPES.IMAGE;
+    if ((SUPPORTED_FORMATS.VIDEO as readonly string[]).includes(ext)) return FILE_TYPES.VIDEO;
+    if ((SUPPORTED_FORMATS.DOCUMENT as readonly string[]).includes(ext)) return FILE_TYPES.DOCUMENT;
+    if ((SUPPORTED_FORMATS.PDF as readonly string[]).includes(ext)) return FILE_TYPES.PDF;
+
+    return FILE_TYPES.UNKNOWN;
   }
 
   // Universal file info creation
   static async createFileInfo(universalFile: UniversalFile): Promise<FileInfo> {
     const fileType = this.determineFileType(universalFile.extension);
-    
+
     return {
       path: universalFile.path || universalFile.name,
       name: universalFile.name,
@@ -137,52 +173,43 @@ export class UniversalFileAPI {
     };
   }
 
-  // Environment-aware file operations
+  // Environment-aware file operations with better error handling
   static async getFileInfo(filePathOrFile: string | File): Promise<FileInfo> {
-    if (isTauriEnvironment() && typeof filePathOrFile === 'string') {
-      // Use Tauri API for desktop
-      const { fileApi: tauriFileApi } = await import('./tauri-api');
-      return await tauriFileApi.getFileInfo(filePathOrFile);
-    } else if (isWebEnvironment() && filePathOrFile instanceof File) {
-      // Use web API for browser
-      const universalFile = WebFileHandler.convertWebFileToUniversal(filePathOrFile);
-      return await this.createFileInfo(universalFile);
-    } else {
-      throw new Error('Invalid file input for current environment');
+    try {
+      if (isTauriEnvironment() && typeof filePathOrFile === 'string') {
+        const { fileApi: tauriFileApi } = await import('./tauri-api');
+        return await tauriFileApi.getFileInfo(filePathOrFile);
+      }
+
+      if (isWebEnvironment() && filePathOrFile instanceof File) {
+        const universalFile = WebFileHandler.convertWebFileToUniversal(filePathOrFile);
+        return await this.createFileInfo(universalFile);
+      }
+
+      throw new Error(`Invalid file input for current environment. Expected ${isTauriEnvironment() ? 'string path' : 'File object'}`);
+    } catch (error) {
+      throw new Error(`Failed to get file info: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
   static async validateFile(filePathOrFile: string | File): Promise<boolean> {
     try {
       if (isTauriEnvironment() && typeof filePathOrFile === 'string') {
-        console.log('Validating desktop file:', filePathOrFile);
         const { fileApi: tauriFileApi } = await import('./tauri-api');
-        const result = await tauriFileApi.validateFilePath(filePathOrFile);
-        console.log('Desktop file validation result:', result);
-        return result;
-      } else if (isWebEnvironment() && filePathOrFile instanceof File) {
-        // Basic validation for web files
-        console.log('Validating web file:', filePathOrFile.name, 'Size:', filePathOrFile.size, 'Type:', filePathOrFile.type);
+        return await tauriFileApi.validateFilePath(filePathOrFile);
+      }
 
-        // Check file size
-        if (filePathOrFile.size === 0) {
-          console.log('File validation failed: file is empty');
+      if (isWebEnvironment() && filePathOrFile instanceof File) {
+        // Validate file size (not empty and reasonable size limit)
+        const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
+        if (filePathOrFile.size === 0 || filePathOrFile.size > MAX_FILE_SIZE) {
           return false;
         }
 
-        // Check file type
-        const isValidType = this.isValidFileType(filePathOrFile.name);
-        console.log('File type valid:', isValidType, 'Extension:', WebFileHandler.getFileExtension(filePathOrFile.name));
-
-        if (!isValidType) {
-          console.log('Supported formats:', this.getAllSupportedFormats());
-        }
-
-        return isValidType;
+        // Validate file type
+        return this.isValidFileType(filePathOrFile.name);
       }
-      console.log('File validation failed - invalid environment or file type');
-      console.log('Environment check - Web:', isWebEnvironment(), 'Tauri:', isTauriEnvironment());
-      console.log('File input type:', typeof filePathOrFile, 'Is File:', filePathOrFile instanceof File);
+
       return false;
     } catch (error) {
       console.error('File validation error:', error);
@@ -190,35 +217,42 @@ export class UniversalFileAPI {
     }
   }
 
-  static async isSupported(filePathOrFile: string | File, type: 'image' | 'video' | 'document' | 'pdf'): Promise<boolean> {
+  static async isSupported(
+    filePathOrFile: string | File,
+    type: 'image' | 'video' | 'document' | 'pdf'
+  ): Promise<boolean> {
     try {
       if (isTauriEnvironment() && typeof filePathOrFile === 'string') {
         const { fileApi: tauriFileApi } = await import('./tauri-api');
-        switch (type) {
-          case 'image':
-            return await tauriFileApi.isSupportedImage(filePathOrFile);
-          case 'video':
-            return await tauriFileApi.isSupportedVideo(filePathOrFile);
-          case 'document':
-            return await tauriFileApi.isSupportedDocument(filePathOrFile);
-          case 'pdf':
-            return await tauriFileApi.isSupportedPdf(filePathOrFile);
-        }
-      } else if (isWebEnvironment() && filePathOrFile instanceof File) {
-        const extension = WebFileHandler.getFileExtension(filePathOrFile.name);
-        switch (type) {
-          case 'image':
-            return this.getSupportedImageFormats().includes(extension);
-          case 'video':
-            return this.getSupportedVideoFormats().includes(extension);
-          case 'document':
-            return this.getSupportedDocumentFormats().includes(extension);
-          case 'pdf':
-            return this.getSupportedPdfFormats().includes(extension);
-        }
+
+        // Use a map for cleaner switch logic
+        const tauriMethods = {
+          image: tauriFileApi.isSupportedImage,
+          video: tauriFileApi.isSupportedVideo,
+          document: tauriFileApi.isSupportedDocument,
+          pdf: tauriFileApi.isSupportedPdf,
+        } as const;
+
+        return await tauriMethods[type](filePathOrFile);
       }
+
+      if (isWebEnvironment() && filePathOrFile instanceof File) {
+        const extension = WebFileHandler.getFileExtension(filePathOrFile.name);
+
+        // Use a map for cleaner logic and better performance
+        const formatMaps = {
+          image: SUPPORTED_FORMATS.IMAGE,
+          video: SUPPORTED_FORMATS.VIDEO,
+          document: SUPPORTED_FORMATS.DOCUMENT,
+          pdf: SUPPORTED_FORMATS.PDF,
+        } as const;
+
+        return (formatMaps[type] as readonly string[]).includes(extension);
+      }
+
       return false;
-    } catch {
+    } catch (error) {
+      console.error(`Error checking ${type} support:`, error);
       return false;
     }
   }
@@ -226,47 +260,68 @@ export class UniversalFileAPI {
 
 // File picker utilities for web environment
 export class WebFilePicker {
+  private static cleanupInput(input: HTMLInputElement): void {
+    try {
+      if (input.parentNode) {
+        input.parentNode.removeChild(input);
+      }
+    } catch (error) {
+      console.warn('Failed to cleanup file input:', error);
+    }
+  }
+
   static createFileInput(accept?: string): HTMLInputElement {
     const input = document.createElement('input');
     input.type = 'file';
     input.style.display = 'none';
+    input.style.position = 'absolute';
+    input.style.left = '-9999px';
+
     if (accept) {
       input.accept = accept;
     }
+
     return input;
   }
 
-  static async pickFile(options?: {
+  static async pickFile(options: {
     accept?: string;
     multiple?: boolean;
-  }): Promise<File | File[] | null> {
+  } = {}): Promise<File | File[] | null> {
     return new Promise((resolve) => {
-      const input = this.createFileInput(options?.accept);
-      input.multiple = options?.multiple || false;
+      const input = this.createFileInput(options.accept);
+      input.multiple = options.multiple ?? false;
 
-      input.onchange = (event) => {
-        const target = event.target as HTMLInputElement;
-        const files = target.files;
-        
+      const cleanup = () => this.cleanupInput(input);
+
+      input.onchange = () => {
+        const files = input.files;
+
         if (!files || files.length === 0) {
           resolve(null);
-          return;
-        }
-
-        if (options?.multiple) {
+        } else if (options.multiple) {
           resolve(Array.from(files));
         } else {
           resolve(files[0]);
         }
 
-        // Clean up
-        document.body.removeChild(input);
+        cleanup();
       };
 
       input.oncancel = () => {
         resolve(null);
-        document.body.removeChild(input);
+        cleanup();
       };
+
+      // Handle escape key and focus loss
+      const handleAbort = () => {
+        resolve(null);
+        cleanup();
+      };
+
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') handleAbort();
+      }, { once: true });
 
       document.body.appendChild(input);
       input.click();
@@ -274,77 +329,102 @@ export class WebFilePicker {
   }
 
   static getAcceptString(): string {
-    const formats = UniversalFileAPI.getAllSupportedFormats();
-    return formats.map(ext => `.${ext}`).join(',');
+    return UniversalFileAPI.getAllSupportedFormats()
+      .map(ext => `.${ext}`)
+      .join(',');
   }
 }
 
-// Export the universal file API
+// Optimized universal file API with better performance and type safety
 export const universalFileApi = {
   // Environment detection
   isWebEnvironment,
   isTauriEnvironment,
-  
-  // File operations
-  getFileInfo: UniversalFileAPI.getFileInfo,
-  validateFile: UniversalFileAPI.validateFile,
-  isSupported: UniversalFileAPI.isSupported,
-  
-  // Format information
-  getSupportedFormats: () => ({
-    image: UniversalFileAPI.getSupportedImageFormats(),
-    video: UniversalFileAPI.getSupportedVideoFormats(),
-    document: UniversalFileAPI.getSupportedDocumentFormats(),
-    pdf: UniversalFileAPI.getSupportedPdfFormats(),
-    all: UniversalFileAPI.getAllSupportedFormats(),
-  }),
-  
-  // File picking
-  pickFile: async (options?: { multiple?: boolean }) => {
-    if (isTauriEnvironment()) {
-      // Use Tauri dialog for desktop
-      const { open } = await import('@tauri-apps/plugin-dialog');
-      const allFormats = UniversalFileAPI.getAllSupportedFormats();
-      
-      const filters = [
-        {
-          name: 'All Supported Files',
-          extensions: allFormats,
-        },
-        {
-          name: 'Images',
-          extensions: UniversalFileAPI.getSupportedImageFormats(),
-        },
-        {
-          name: 'Videos',
-          extensions: UniversalFileAPI.getSupportedVideoFormats(),
-        },
-        {
-          name: 'Documents',
-          extensions: UniversalFileAPI.getSupportedDocumentFormats(),
-        },
-        {
-          name: 'PDF Files',
-          extensions: UniversalFileAPI.getSupportedPdfFormats(),
-        },
-      ];
 
-      return await open({
-        multiple: options?.multiple || false,
-        filters,
-        title: 'Select file for processing',
-      });
-    } else {
-      // Use web file picker for browser
-      return await WebFilePicker.pickFile({
-        accept: WebFilePicker.getAcceptString(),
-        multiple: options?.multiple,
-      });
+  // File operations
+  getFileInfo: UniversalFileAPI.getFileInfo.bind(UniversalFileAPI),
+  validateFile: UniversalFileAPI.validateFile.bind(UniversalFileAPI),
+  isSupported: UniversalFileAPI.isSupported.bind(UniversalFileAPI),
+
+  // Format information - cached for performance
+  getSupportedFormats: (() => {
+    let cachedFormats: ReturnType<typeof getSupportedFormats> | null = null;
+
+    function getSupportedFormats() {
+      return {
+        image: UniversalFileAPI.getSupportedImageFormats(),
+        video: UniversalFileAPI.getSupportedVideoFormats(),
+        document: UniversalFileAPI.getSupportedDocumentFormats(),
+        pdf: UniversalFileAPI.getSupportedPdfFormats(),
+        all: UniversalFileAPI.getAllSupportedFormats(),
+      };
+    }
+
+    return () => {
+      if (!cachedFormats) {
+        cachedFormats = getSupportedFormats();
+      }
+      return cachedFormats;
+    };
+  })(),
+
+  // File picking with better error handling
+  pickFile: async (options: { multiple?: boolean } = {}) => {
+    try {
+      if (isTauriEnvironment()) {
+        const { open } = await import('@tauri-apps/plugin-dialog');
+
+        // Convert readonly arrays to mutable arrays for Tauri compatibility
+        const filters = [
+          {
+            name: 'All Supported Files',
+            extensions: [...UniversalFileAPI.getAllSupportedFormats()],
+          },
+          {
+            name: 'Images',
+            extensions: [...UniversalFileAPI.getSupportedImageFormats()],
+          },
+          {
+            name: 'Videos',
+            extensions: [...UniversalFileAPI.getSupportedVideoFormats()],
+          },
+          {
+            name: 'Documents',
+            extensions: [...UniversalFileAPI.getSupportedDocumentFormats()],
+          },
+          {
+            name: 'PDF Files',
+            extensions: [...UniversalFileAPI.getSupportedPdfFormats()],
+          },
+        ];
+
+        return await open({
+          multiple: options.multiple ?? false,
+          filters,
+          title: 'Select file for processing',
+        });
+      } else {
+        return await WebFilePicker.pickFile({
+          accept: WebFilePicker.getAcceptString(),
+          multiple: options.multiple,
+        });
+      }
+    } catch (error) {
+      console.error('Error picking file:', error);
+      return null;
     }
   },
-  
+
   // Utilities
   formatFileSize: WebFileHandler.formatFileSize,
   getFileExtension: WebFileHandler.getFileExtension,
+
+  // Constants for external use
+  FILE_TYPES,
+  SUPPORTED_FORMATS,
+
+  // Classes for advanced usage
   WebFileHandler,
-};
+  UniversalFileAPI,
+  WebFilePicker,
+} as const;

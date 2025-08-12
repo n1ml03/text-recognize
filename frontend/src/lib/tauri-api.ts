@@ -157,6 +157,10 @@ export const ocrApi = {
     return safeInvoke('process_image_ocr', { file_path: filePath, preprocessing_options: options });
   },
 
+  processVideo: async (filePath: string, options?: PreprocessingOptions): Promise<OCRResult> => {
+    return safeInvoke('process_video_ocr', { file_path: filePath, preprocessing_options: options });
+  },
+
   validateImageFile: async (filePath: string): Promise<boolean> => {
     return safeInvoke('validate_image_file', { filePath });
   },

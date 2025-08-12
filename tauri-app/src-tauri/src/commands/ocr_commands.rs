@@ -45,6 +45,27 @@ pub async fn get_supported_image_formats() -> Result<Vec<String>, String> {
 }
 
 #[tauri::command]
+pub async fn process_video_ocr(
+    file_path: String,
+    preprocessing_options: Option<PreprocessingOptions>,
+    state: State<'_, OCRState>,
+) -> Result<OCRResult, String> {
+    let mut ocr_service = state.0.lock().await;
+    ocr_service
+        .extract_text_from_video(&file_path, preprocessing_options)
+        .await
+        .to_tauri_result()
+}
+
+#[tauri::command]
+pub async fn shutdown_ocr_service(
+    state: State<'_, OCRState>,
+) -> Result<(), String> {
+    let ocr_service = state.0.lock().await;
+    ocr_service.shutdown().await.to_tauri_result()
+}
+
+#[tauri::command]
 pub async fn extract_video_frames(
     video_path: String,
     output_dir: String,
@@ -53,5 +74,6 @@ pub async fn extract_video_frames(
     use crate::services::FileHandlerService;
 
     FileHandlerService::extract_frames_from_video(&video_path, &output_dir, frame_interval)
+        .await
         .to_tauri_result()
 }

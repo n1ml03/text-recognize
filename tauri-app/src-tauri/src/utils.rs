@@ -164,24 +164,7 @@ pub mod text_processing {
         }
     }
 
-    /// Count words in text
-    pub fn count_words(text: &str) -> usize {
-        text.split_whitespace().count()
-    }
 
-    /// Count sentences in text (basic implementation)
-    pub fn count_sentences(text: &str) -> usize {
-        text.split(&['.', '!', '?'][..])
-            .filter(|s| !s.trim().is_empty())
-            .count()
-    }
-
-    /// Count paragraphs in text
-    pub fn count_paragraphs(text: &str) -> usize {
-        text.split("\n\n")
-            .filter(|p| !p.trim().is_empty())
-            .count()
-    }
 }
 
 /// Common path utilities
@@ -241,30 +224,4 @@ pub mod path_utils {
     }
 }
 
-/// Common async utilities
-pub mod async_utils {
-    use tokio::sync::Mutex;
-    use std::sync::Arc;
 
-    /// Helper trait for safe mutex operations
-    pub trait SafeMutexOps<T> {
-        async fn with_lock<F, R>(&self, f: F) -> R
-        where
-            F: FnOnce(&mut T) -> R + Send,
-            R: Send;
-    }
-
-    impl<T> SafeMutexOps<T> for Arc<Mutex<T>>
-    where
-        T: Send,
-    {
-        async fn with_lock<F, R>(&self, f: F) -> R
-        where
-            F: FnOnce(&mut T) -> R + Send,
-            R: Send,
-        {
-            let mut guard = self.lock().await;
-            f(&mut *guard)
-        }
-    }
-}

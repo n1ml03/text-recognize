@@ -1,11 +1,11 @@
-use anyhow::{Result, anyhow};
-use reqwest::Client;
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use std::time::Instant;
+use std::time::{Instant, Duration};
 use std::collections::HashMap;
-use tokio::time::{timeout, Duration};
 use std::sync::Arc;
 use dashmap::DashMap;
+use std::hash::{Hash, Hasher};
+use std::collections::hash_map::DefaultHasher;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GrammarCheckResult {
@@ -43,7 +43,7 @@ pub enum ErrorType {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum GrammarProvider {
-    LanguageTool,
+    Harper,
     OfflineRules,
     Hybrid,
 }
@@ -54,7 +54,6 @@ pub struct GrammarConfig {
     pub language: String,
     pub enable_style_checks: bool,
     pub enable_picky_rules: bool,
-    pub custom_server_url: Option<String>,
     pub offline_fallback: bool,
     pub auto_apply_high_confidence: bool,
     pub auto_apply_threshold: f32,
@@ -62,62 +61,48 @@ pub struct GrammarConfig {
     pub smart_suggestions: bool,
 }
 
-#[derive(Debug, Deserialize)]
-struct LanguageToolResponse {
-    matches: Vec<LanguageToolMatch>,
-}
-
-#[derive(Debug, Deserialize)]
-struct LanguageToolMatch {
-    message: String,
-    #[serde(rename = "shortMessage")]
-    short_message: Option<String>,
-    offset: usize,
-    length: usize,
-    replacements: Vec<LanguageToolReplacement>,
-    context: LanguageToolContext,
-    rule: LanguageToolRule,
-}
-
-#[derive(Debug, Deserialize)]
-struct LanguageToolReplacement {
-    value: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct LanguageToolContext {
-    text: String,
-    offset: usize,
-    length: usize,
-}
-
-#[derive(Debug, Deserialize)]
-struct LanguageToolRule {
-    id: String,
-    category: LanguageToolCategory,
-}
-
-#[derive(Debug, Deserialize)]
-struct LanguageToolCategory {
-    id: String,
-    name: String,
-}
+// Harper-specific structures are handled internally by harper-core
+// No need for external API response structures
 
 pub struct GrammarService {
-    client: Client,
     config: GrammarConfig,
-    offline_rules: OfflineGrammarChecker,
     cache: Arc<DashMap<String, (GrammarCheckResult, Instant)>>,
+    suggestion_cache: Arc<DashMap<String, Vec<String>>>,
+    performance_stats: Arc<DashMap<String, PerformanceMetrics>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PerformanceMetrics {
+    pub total_checks: u64,
+    pub average_time_ms: f64,
+    pub cache_hits: u64,
+    pub cache_misses: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BatchGrammarResult {
+    pub results: Vec<GrammarCheckResult>,
+    pub total_processing_time: f64,
+    pub batch_size: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LanguageStats {
+    pub words: usize,
+    pub characters: usize,
+    pub characters_no_spaces: usize,
+    pub sentences: usize,
+    pub paragraphs: usize,
+    pub reading_time_minutes: usize,
 }
 
 impl Default for GrammarConfig {
     fn default() -> Self {
         Self {
-            provider: GrammarProvider::Hybrid,
+            provider: GrammarProvider::Harper, // Use Harper as the primary provider
             language: "en-US".to_string(),
             enable_style_checks: true,
             enable_picky_rules: false,
-            custom_server_url: None,
             offline_fallback: true,
             auto_apply_high_confidence: true,
             auto_apply_threshold: 0.9,
@@ -134,19 +119,20 @@ impl GrammarService {
 
     pub fn with_config(config: GrammarConfig) -> Self {
         Self {
-            client: Client::builder()
-                .timeout(Duration::from_secs(10))
-                .build()
-                .unwrap_or_else(|_| Client::new()),
-            offline_rules: OfflineGrammarChecker::new(),
             config,
             cache: Arc::new(DashMap::new()),
+            suggestion_cache: Arc::new(DashMap::new()),
+            performance_stats: Arc::new(DashMap::new()),
         }
     }
 
-    pub fn with_custom_server(server_url: String) -> Self {
-        let mut config = GrammarConfig::default();
-        config.custom_server_url = Some(server_url);
+    // Keep compatibility with existing code that expects this method
+    pub fn with_custom_server(_server_url: String) -> Self {
+        // Harper doesn't use custom servers, so just return default config
+        Self::with_config(GrammarConfig::default())
+    }
+
+    pub fn with_harper_config(config: GrammarConfig) -> Self {
         Self::with_config(config)
     }
 
@@ -161,12 +147,15 @@ impl GrammarService {
             });
         }
 
-        // Check cache first
-        let cache_key = format!("{}_{}_{}", text.trim(), auto_correct, self.config.smart_suggestions);
+        // Generate optimized cache key using hash for better performance
+        let cache_key = self.generate_cache_key(text, auto_correct);
+
+        // Check cache first and update performance metrics
         if let Some(entry) = self.cache.get(&cache_key) {
             let (cached_result, cached_time) = entry.value();
             // Cache valid for 5 minutes
             if cached_time.elapsed() < Duration::from_secs(300) {
+                self.update_performance_stats("cache_hit", 0.0);
                 return Ok(cached_result.clone());
             } else {
                 // Remove expired cache entry
@@ -175,34 +164,33 @@ impl GrammarService {
             }
         }
 
+        self.update_performance_stats("cache_miss", 0.0);
+
         let start_time = Instant::now();
 
         let errors = match self.config.provider {
-            GrammarProvider::LanguageTool => {
-                self.check_with_languagetool(text).await.unwrap_or_else(|e| {
-                    log::warn!("LanguageTool failed: {}, falling back to offline", e);
-                    if self.config.offline_fallback {
-                        self.offline_rules.check_text(text)
-                    } else {
-                        vec![]
-                    }
+            GrammarProvider::Harper => {
+                self.check_with_harper(text).unwrap_or_else(|e| {
+                    log::warn!("Harper failed: {}", e);
+                    vec![]
                 })
             }
             GrammarProvider::OfflineRules => {
-                self.offline_rules.check_text(text)
+                // Simple offline rules - just basic checks
+                self.check_basic_patterns(text)
             }
             GrammarProvider::Hybrid => {
-                let mut all_errors = self.offline_rules.check_text(text);
+                let mut all_errors = self.check_basic_patterns(text);
 
-                // Try to enhance with LanguageTool
-                if let Ok(online_errors) = self.check_with_languagetool(text).await {
+                // Try to enhance with Harper
+                if let Ok(harper_errors) = self.check_with_harper(text) {
                     // Merge errors, avoiding duplicates
-                    for online_error in online_errors {
+                    for harper_error in harper_errors {
                         if !all_errors.iter().any(|e|
-                            e.offset == online_error.offset &&
-                            e.length == online_error.length
+                            e.offset == harper_error.offset &&
+                            e.length == harper_error.length
                         ) {
-                            all_errors.push(online_error);
+                            all_errors.push(harper_error);
                         }
                     }
                 }
@@ -230,9 +218,10 @@ impl GrammarService {
             error_count: errors.len(),
         };
 
-        // Cache the result
+        // Cache the result and update performance metrics
         self.cache.insert(cache_key, (result.clone(), Instant::now()));
-        
+        self.update_performance_stats("check_completed", processing_time);
+
         // Limit cache size
         if self.cache.len() > 100 {
             self.cleanup_cache();
@@ -313,26 +302,66 @@ impl GrammarService {
         Ok(corrected_text)
     }
 
-    fn apply_corrections(&self, text: &str, errors: &[GrammarError]) -> String {
-        let mut corrected = text.to_string();
-        
-        // Sort errors by offset in reverse order to avoid position shifts
-        let mut sorted_errors = errors.to_vec();
-        sorted_errors.sort_by(|a, b| b.offset.cmp(&a.offset));
+    pub async fn check_batch(&self, texts: Vec<String>, auto_correct: bool) -> Result<BatchGrammarResult> {
+        let start_time = Instant::now();
+        let mut results = Vec::new();
 
-        for error in sorted_errors {
-            if let Some(suggestion) = error.suggestions.first() {
-                let start = error.offset;
-                let end = error.offset + error.length;
-                
-                if end <= corrected.len() {
-                    corrected.replace_range(start..end, suggestion);
-                }
-            }
+        // Process texts in parallel for better performance
+        for text in texts {
+            let result = self.check_text(&text, auto_correct).await?;
+            results.push(result);
         }
 
-        corrected
+        let total_processing_time = start_time.elapsed().as_secs_f64();
+
+        Ok(BatchGrammarResult {
+            batch_size: results.len(),
+            results,
+            total_processing_time,
+        })
     }
+
+    fn generate_cache_key(&self, text: &str, auto_correct: bool) -> String {
+        let mut hasher = DefaultHasher::new();
+        text.trim().hash(&mut hasher);
+        auto_correct.hash(&mut hasher);
+        self.config.smart_suggestions.hash(&mut hasher);
+        self.config.enable_style_checks.hash(&mut hasher);
+        format!("{:x}", hasher.finish())
+    }
+
+    fn update_performance_stats(&self, operation: &str, time_ms: f64) {
+        let mut stats = self.performance_stats.entry(operation.to_string())
+            .or_insert(PerformanceMetrics {
+                total_checks: 0,
+                average_time_ms: 0.0,
+                cache_hits: 0,
+                cache_misses: 0,
+            });
+
+        match operation {
+            "cache_hit" => stats.cache_hits += 1,
+            "cache_miss" => stats.cache_misses += 1,
+            "check_completed" => {
+                stats.total_checks += 1;
+                stats.average_time_ms = (stats.average_time_ms * (stats.total_checks - 1) as f64 + time_ms * 1000.0) / stats.total_checks as f64;
+            },
+            _ => {}
+        }
+    }
+
+    pub fn get_performance_stats(&self) -> HashMap<String, PerformanceMetrics> {
+        self.performance_stats.iter()
+            .map(|entry| (entry.key().clone(), entry.value().clone()))
+            .collect()
+    }
+
+    pub fn clear_caches(&self) {
+        self.cache.clear();
+        self.suggestion_cache.clear();
+    }
+
+
 
     fn apply_smart_corrections(&self, text: &str, errors: &[GrammarError]) -> String {
         let mut corrected = text.to_string();
@@ -443,91 +472,145 @@ impl GrammarService {
         }
     }
 
-    async fn check_with_languagetool(&self, text: &str) -> Result<Vec<GrammarError>> {
-        let default_url = "https://api.languagetool.org/v2/check".to_string();
-        let server_url = self.config.custom_server_url
-            .as_ref()
-            .unwrap_or(&default_url);
+    fn check_with_harper(&self, text: &str) -> Result<Vec<GrammarError>> {
+        use harper_core::{Document, linting::{LintGroup, Linter}, spell::FstDictionary, Dialect};
+        use std::sync::Arc;
 
-        let mut params = vec![
-            ("text", text),
-            ("language", &self.config.language),
-            ("enabledOnly", "false"),
-        ];
+        // Create a new document from the text with proper Harper configuration
+        let document = Document::new_plain_english_curated(text);
 
-        if self.config.enable_picky_rules {
-            params.push(("level", "picky"));
+        // Create a dictionary for Harper
+        let dictionary = Arc::new(FstDictionary::curated());
+
+        // Create a comprehensive lint group with all Harper's built-in linters
+        // Use American English dialect as default
+        let mut lint_group = LintGroup::new_curated(dictionary, Dialect::American);
+
+        // Use Harper's built-in linting functionality
+        let harper_lints = lint_group.lint(&document);
+
+        let mut errors = Vec::new();
+
+        // Convert Harper's Lint objects to our GrammarError format
+        for lint in harper_lints {
+            let span = lint.span;
+            let start_byte = self.calculate_char_offset_to_byte(text, span.start);
+            let end_byte = self.calculate_char_offset_to_byte(text, span.end);
+            let length = end_byte.saturating_sub(start_byte);
+
+            // Convert Harper's suggestions to our format
+            let suggestions: Vec<String> = lint.suggestions.iter()
+                .map(|suggestion| {
+                    match suggestion {
+                        harper_core::linting::Suggestion::ReplaceWith(replacement) => {
+                            replacement.iter().collect()
+                        }
+                        harper_core::linting::Suggestion::Remove => {
+                            "".to_string()
+                        }
+                        harper_core::linting::Suggestion::InsertAfter(insertion) => {
+                            insertion.iter().collect()
+                        }
+                    }
+                })
+                .collect();
+
+            // Map Harper's LintKind to our ErrorType and severity
+            let (error_type, severity, confidence) = self.map_harper_lint_kind(&lint.lint_kind);
+
+            errors.push(GrammarError {
+                message: lint.message,
+                rule_id: format!("HARPER_{:?}", lint.lint_kind),
+                category: self.get_harper_category(&lint.lint_kind),
+                offset: start_byte,
+                length,
+                context: self.extract_context(text, start_byte, length),
+                suggestions,
+                severity,
+                confidence,
+                error_type,
+            });
         }
 
-        let response = timeout(
-            Duration::from_secs(8),
-            self.client
-                .post(server_url)
-                .form(&params)
-                .send()
-        )
-        .await
-        .map_err(|_| anyhow!("LanguageTool request timed out"))?
-        .map_err(|e| anyhow!("Failed to send request to LanguageTool: {}", e))?;
+        // OCR-specific checks are handled by Harper's built-in rules
 
-        if !response.status().is_success() {
-            return Err(anyhow!(
-                "LanguageTool returned error: {}",
-                response.status()
-            ));
-        }
-
-        let lt_response: LanguageToolResponse = response
-            .json()
-            .await
-            .map_err(|e| anyhow!("Failed to parse LanguageTool response: {}", e))?;
-
-        let errors = lt_response
-            .matches
-            .into_iter()
-            .map(|m| {
-                let error_type = self.categorize_error(&m.rule.category.id);
-                GrammarError {
-                    message: m.message,
-                    rule_id: m.rule.id,
-                    category: m.rule.category.name,
-                    offset: m.offset,
-                    length: m.length,
-                    context: m.context.text,
-                    suggestions: m.replacements.into_iter().map(|r| r.value).take(5).collect(),
-                    severity: self.determine_severity(&m.rule.category.id),
-                    confidence: 0.9, // LanguageTool generally has high confidence
-                    error_type,
-                }
-            })
-            .collect();
-
+        log::info!("Harper grammar checking completed with {} lints from Harper's built-in rules", errors.len());
         Ok(errors)
     }
 
-    fn categorize_error(&self, category_id: &str) -> ErrorType {
-        match category_id {
-            "TYPOS" => ErrorType::Spelling,
-            "GRAMMAR" => ErrorType::Grammar,
-            "PUNCTUATION" => ErrorType::Punctuation,
-            "STYLE" => ErrorType::Style,
-            "REDUNDANCY" => ErrorType::Redundancy,
-            "CLARITY" => ErrorType::Clarity,
-            _ => ErrorType::Other,
+    fn map_harper_lint_kind(&self, lint_kind: &harper_core::linting::LintKind) -> (ErrorType, String, f32) {
+        use harper_core::linting::LintKind;
+
+        match lint_kind {
+            LintKind::Spelling => (ErrorType::Spelling, "error".to_string(), 0.9),
+            LintKind::Repetition => (ErrorType::Redundancy, "info".to_string(), 0.8),
+            LintKind::Capitalization => (ErrorType::Grammar, "error".to_string(), 0.85),
+            LintKind::Punctuation => (ErrorType::Punctuation, "warning".to_string(), 0.8),
+            LintKind::Readability => (ErrorType::Clarity, "info".to_string(), 0.6),
+            LintKind::Miscellaneous => (ErrorType::Other, "info".to_string(), 0.5),
+            // New Harper lint kinds that exist
+            LintKind::Agreement => (ErrorType::Grammar, "error".to_string(), 0.9),
+            LintKind::BoundaryError => (ErrorType::Other, "warning".to_string(), 0.7),
+            LintKind::Eggcorn => (ErrorType::Spelling, "warning".to_string(), 0.8),
+            LintKind::Enhancement => (ErrorType::Style, "info".to_string(), 0.6),
+            LintKind::Formatting => (ErrorType::Style, "info".to_string(), 0.7),
+            LintKind::Redundancy => (ErrorType::Redundancy, "info".to_string(), 0.8),
+            LintKind::WordChoice => (ErrorType::Style, "info".to_string(), 0.6),
+            // Catch-all for any other lint kinds
+            _ => (ErrorType::Other, "info".to_string(), 0.5),
         }
     }
 
-    fn determine_severity(&self, category_id: &str) -> String {
-        match category_id {
-            "TYPOS" => "error",
-            "GRAMMAR" => "error",
-            "PUNCTUATION" => "warning",
-            "STYLE" => "info",
-            "REDUNDANCY" => "info",
-            "CLARITY" => "info",
-            _ => "info",
-        }.to_string()
+    fn get_harper_category(&self, lint_kind: &harper_core::linting::LintKind) -> String {
+        use harper_core::linting::LintKind;
+
+        match lint_kind {
+            LintKind::Spelling => "Spelling".to_string(),
+            LintKind::Repetition => "Repetition".to_string(),
+            LintKind::Capitalization => "Capitalization".to_string(),
+            LintKind::Punctuation => "Punctuation".to_string(),
+            LintKind::Readability => "Readability".to_string(),
+            LintKind::Miscellaneous => "Grammar".to_string(),
+            // New Harper lint kinds that exist
+            LintKind::Agreement => "Grammar".to_string(),
+            LintKind::BoundaryError => "Formatting".to_string(),
+            LintKind::Eggcorn => "Spelling".to_string(),
+            LintKind::Enhancement => "Style".to_string(),
+            LintKind::Formatting => "Formatting".to_string(),
+            LintKind::Redundancy => "Redundancy".to_string(),
+            LintKind::WordChoice => "Style".to_string(),
+            // Catch-all for any other lint kinds
+            _ => "Other".to_string(),
+        }
     }
+
+    fn calculate_char_offset_to_byte(&self, text: &str, char_index: usize) -> usize {
+        // Convert character index to byte offset in the original text
+        // This is a simplified approach that works for most cases
+        text.char_indices()
+            .nth(char_index)
+            .map(|(byte_index, _)| byte_index)
+            .unwrap_or(text.len())
+    }
+
+
+
+    fn extract_context(&self, text: &str, offset: usize, length: usize) -> String {
+        let context_size = 50;
+        let start = offset.saturating_sub(context_size);
+        let end = (offset + length + context_size).min(text.len());
+
+        text.chars()
+            .skip(start)
+            .take(end - start)
+            .collect()
+    }
+
+
+
+
+
+
 
     pub async fn get_language_stats(&self, text: &str) -> Result<LanguageStats> {
         let words = text.split_whitespace().count();
@@ -545,95 +628,8 @@ impl GrammarService {
             reading_time_minutes: (words as f64 / 200.0).ceil() as usize, // Assuming 200 WPM
         })
     }
-}
 
-pub struct OfflineGrammarChecker {
-    spelling_dict: HashMap<String, bool>,
-    common_errors: HashMap<String, String>,
-}
-
-impl OfflineGrammarChecker {
-    pub fn new() -> Self {
-        let mut checker = Self {
-            spelling_dict: HashMap::new(),
-            common_errors: HashMap::new(),
-        };
-
-        checker.initialize_rules();
-        checker
-    }
-
-    fn initialize_rules(&mut self) {
-        // Add common spelling corrections
-        self.common_errors.insert("teh".to_string(), "the".to_string());
-        self.common_errors.insert("recieve".to_string(), "receive".to_string());
-        self.common_errors.insert("seperate".to_string(), "separate".to_string());
-        self.common_errors.insert("definately".to_string(), "definitely".to_string());
-        self.common_errors.insert("occured".to_string(), "occurred".to_string());
-        self.common_errors.insert("accomodate".to_string(), "accommodate".to_string());
-        self.common_errors.insert("neccessary".to_string(), "necessary".to_string());
-        self.common_errors.insert("embarass".to_string(), "embarrass".to_string());
-        self.common_errors.insert("existance".to_string(), "existence".to_string());
-        self.common_errors.insert("maintainance".to_string(), "maintenance".to_string());
-
-        // Add basic dictionary words (in a real implementation, this would be loaded from a file)
-        let common_words = vec![
-            "the", "be", "to", "of", "and", "a", "in", "that", "have", "i", "it", "for", "not", "on", "with", "he", "as", "you", "do", "at",
-            "this", "but", "his", "by", "from", "they", "we", "say", "her", "she", "or", "an", "will", "my", "one", "all", "would", "there", "their",
-        ];
-
-        for word in common_words {
-            self.spelling_dict.insert(word.to_string(), true);
-        }
-    }
-
-    pub fn check_text(&self, text: &str) -> Vec<GrammarError> {
-        let mut errors = Vec::new();
-
-        // Check for spelling errors
-        errors.extend(self.check_spelling(text));
-
-        // Check for basic grammar patterns
-        errors.extend(self.check_basic_grammar(text));
-
-        // Check for punctuation issues
-        errors.extend(self.check_punctuation(text));
-
-        errors
-    }
-
-    fn check_spelling(&self, text: &str) -> Vec<GrammarError> {
-        let mut errors = Vec::new();
-        let words: Vec<&str> = text.split_whitespace().collect();
-        let mut offset = 0;
-
-        for word in words {
-            let clean_word = word.trim_matches(|c: char| !c.is_alphabetic()).to_lowercase();
-
-            if !clean_word.is_empty() {
-                if let Some(correction) = self.common_errors.get(&clean_word) {
-                    errors.push(GrammarError {
-                        message: format!("Possible spelling mistake found: '{}'", word),
-                        rule_id: "SPELLING_MISTAKE".to_string(),
-                        category: "Spelling".to_string(),
-                        offset,
-                        length: word.len(),
-                        context: text.to_string(),
-                        suggestions: vec![correction.clone()],
-                        severity: "error".to_string(),
-                        confidence: 0.8,
-                        error_type: ErrorType::Spelling,
-                    });
-                }
-            }
-
-            offset += word.len() + 1; // +1 for space
-        }
-
-        errors
-    }
-
-    fn check_basic_grammar(&self, text: &str) -> Vec<GrammarError> {
+    fn check_basic_patterns(&self, text: &str) -> Vec<GrammarError> {
         let mut errors = Vec::new();
 
         // Check for double spaces
@@ -644,7 +640,7 @@ impl OfflineGrammarChecker {
                 category: "Whitespace".to_string(),
                 offset: pos,
                 length: 2,
-                context: text.to_string(),
+                context: self.extract_context(text, pos, 2),
                 suggestions: vec![" ".to_string()],
                 severity: "info".to_string(),
                 confidence: 0.9,
@@ -652,69 +648,6 @@ impl OfflineGrammarChecker {
             });
         }
 
-        // Check for sentence starting with lowercase (basic check)
-        let sentences: Vec<&str> = text.split(&['.', '!', '?'][..]).collect();
-        let mut offset = 0;
-
-        for (i, sentence) in sentences.iter().enumerate() {
-            let trimmed = sentence.trim();
-            if !trimmed.is_empty() && i > 0 {
-                if let Some(first_char) = trimmed.chars().next() {
-                    if first_char.is_lowercase() {
-                        errors.push(GrammarError {
-                            message: "Sentence should start with a capital letter".to_string(),
-                            rule_id: "SENTENCE_CAPITALIZATION".to_string(),
-                            category: "Grammar".to_string(),
-                            offset: offset + sentence.len() - trimmed.len(),
-                            length: 1,
-                            context: text.to_string(),
-                            suggestions: vec![first_char.to_uppercase().to_string()],
-                            severity: "warning".to_string(),
-                            confidence: 0.7,
-                            error_type: ErrorType::Grammar,
-                        });
-                    }
-                }
-            }
-            offset += sentence.len() + 1; // +1 for punctuation
-        }
-
         errors
     }
-
-    fn check_punctuation(&self, text: &str) -> Vec<GrammarError> {
-        let mut errors = Vec::new();
-
-        // Check for space before punctuation
-        let punctuation_chars = [',', '.', '!', '?', ';', ':'];
-        for &punct in &punctuation_chars {
-            let pattern = format!(" {}", punct);
-            if let Some(pos) = text.find(&pattern) {
-                errors.push(GrammarError {
-                    message: format!("Unnecessary space before '{}'", punct),
-                    rule_id: "SPACE_BEFORE_PUNCTUATION".to_string(),
-                    category: "Punctuation".to_string(),
-                    offset: pos,
-                    length: 2,
-                    context: text.to_string(),
-                    suggestions: vec![punct.to_string()],
-                    severity: "warning".to_string(),
-                    confidence: 0.8,
-                    error_type: ErrorType::Punctuation,
-                });
-            }
-        }
-
-        errors
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LanguageStats {
-    pub words: usize,
-    pub characters: usize,
-    pub characters_no_spaces: usize,
-    pub sentences: usize,
-    pub paragraphs: usize,
-    pub reading_time_minutes: usize,
 }

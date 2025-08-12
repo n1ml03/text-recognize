@@ -1,6 +1,6 @@
 import * as React from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { cn } from "@/lib/utils"
+import { cn, themeColors } from "@/lib/utils"
 import { Check, Minus } from "lucide-react"
 
 export interface CheckboxProps
@@ -66,8 +66,8 @@ const Checkbox = React.forwardRef<HTMLInputElement, CheckboxProps>(
           animate={{
             scale: isChecked || indeterminate ? 1.1 : 1,
             backgroundColor: isChecked || indeterminate
-              ? "hsl(var(--primary))"
-              : "hsl(var(--background))",
+              ? themeColors.primary()
+              : themeColors.background(),
           }}
           transition={{ type: "spring", stiffness: 300, damping: 25 }}
         >
@@ -118,7 +118,7 @@ const Checkbox = React.forwardRef<HTMLInputElement, CheckboxProps>(
               props.disabled && "cursor-not-allowed opacity-50"
             )}
             animate={{
-              color: isFocused ? "hsl(var(--primary))" : "hsl(var(--foreground))"
+              color: isFocused ? themeColors.primary() : themeColors.foreground()
             }}
             transition={{ duration: 0.2 }}
           >

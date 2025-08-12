@@ -1,13 +1,12 @@
 import { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Upload, File, Image, Video, FileText, X, Info, Globe, Monitor } from 'lucide-react';
+import { Upload, File as FileIcon, Image, Video, FileText, X, Globe, Monitor, CheckCircle2, Sparkles } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { UploadIcon, SuccessIcon } from '@/components/ui/animated-icons';
+import { UploadIcon } from '@/components/ui/animated-icons';
 import { useFileState, useAppStore } from '@/store/app-store';
 import { universalFileApi } from '@/lib/universal-file-api';
-import { useAnimationConfig } from '@/hooks/useReducedMotion';
 import { scaleIn } from '@/lib/micro-interactions';
 
 export function FileUploadArea() {
@@ -19,7 +18,6 @@ export function FileUploadArea() {
   const [isDragActive, setIsDragActive] = useState(false);
   const [isWebFile, setIsWebFile] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
-  const { shouldAnimate } = useAnimationConfig();
 
   // Universal file handling for both desktop and web
   const handleFileSelect = useCallback(async (fileInput: string | File) => {
@@ -39,12 +37,22 @@ export function FileUploadArea() {
       }
 
       // Check if supported
+      console.log('Checking file support for:', fileInput instanceof File ? fileInput.name : fileInput);
       const isImage = await universalFileApi.isSupported(fileInput, 'image');
       const isVideo = await universalFileApi.isSupported(fileInput, 'video');
       const isDocument = await universalFileApi.isSupported(fileInput, 'document');
       const isPdf = await universalFileApi.isSupported(fileInput, 'pdf');
 
+      console.log('File support results:', { isImage, isVideo, isDocument, isPdf });
+
       if (!isImage && !isVideo && !isDocument && !isPdf) {
+        console.log('File extension:', universalFileApi.getFileExtension(fileInput instanceof File ? fileInput.name : fileInput));
+        console.log('Supported formats:', {
+          image: universalFileApi.getSupportedFormats().image,
+          video: universalFileApi.getSupportedFormats().video,
+          document: universalFileApi.getSupportedFormats().document,
+          pdf: universalFileApi.getSupportedFormats().pdf
+        });
         setError('File format not supported. Please select an image, video, document, or PDF file.');
         return;
       }
@@ -151,7 +159,7 @@ export function FileUploadArea() {
       case 'Video': return <Video className="h-8 w-8 text-purple-500" />;
       case 'Document': return <FileText className="h-8 w-8 text-green-500" />;
       case 'Pdf': return <FileText className="h-8 w-8 text-red-500" />;
-      default: return <File className="h-8 w-8 text-gray-500" />;
+      default: return <FileIcon className="h-8 w-8 text-gray-500" />;
     }
   };
 
@@ -167,25 +175,20 @@ export function FileUploadArea() {
     }
   };
 
-  const getEnvironmentText = () => {
-    if (universalFileApi.isWebEnvironment()) {
-      return 'Web Version';
-    } else {
-      return 'Desktop Version';
-    }
-  };
-
   return (
-    <Card className="h-fit">
-      <CardHeader>
+    <Card className="h-fit overflow-hidden border-0 shadow-lg bg-gradient-to-br from-background via-background to-muted/20">
+      <CardHeader className="pb-4">
         <CardTitle className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Upload className="h-5 w-5" />
-            File Upload
-          </div>
-          <div className="flex items-center gap-1 text-sm font-normal text-muted-foreground">
-            {getEnvironmentIcon()}
-            {getEnvironmentText()}
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-primary/10 text-primary">
+              <Upload className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold">File Upload</h2>
+              <p className="text-xs text-muted-foreground font-normal">
+                Images, videos, documents & PDFs supported
+              </p>
+            </div>
           </div>
         </CardTitle>
       </CardHeader>
@@ -195,71 +198,152 @@ export function FileUploadArea() {
             <div {...dropzoneProps}>
               <motion.div
                 key="upload"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className={`
-                  border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors
-                  p-4 sm:p-6 lg:p-8
-                  ${isDragActive
-                    ? 'border-primary bg-primary/5'
-                    : 'border-muted-foreground/25 hover:border-primary/50 active:border-primary/70'
-                  }
-                `}
-                onClick={openFilePicker}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.3 }}
+                className="relative"
               >
-              <input {...getInputProps()} />
-              <motion.div
-                animate={{ scale: isDragActive ? 1.05 : 1 }}
-                transition={shouldAnimate ? { type: "spring", stiffness: 300, damping: 20 } : { duration: 0.01 }}
-              >
-                {/* Success state */}
-                <AnimatePresence>
-                  {uploadSuccess && (
-                    <motion.div
-                      variants={scaleIn}
-                      initial="initial"
-                      animate="animate"
-                      exit="exit"
-                      className="absolute inset-0 flex items-center justify-center bg-green-50 dark:bg-green-950 rounded-lg"
-                    >
-                      <div className="text-center">
-                        <SuccessIcon size={48} className="mx-auto mb-2" />
-                        <p className="text-green-600 dark:text-green-400 font-medium">File uploaded successfully!</p>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                <motion.div
+                  className={`
+                    relative border-2 border-dashed rounded-xl text-center cursor-pointer transition-all duration-300
+                    p-8 sm:p-10 lg:p-12 overflow-hidden
+                    ${isDragActive
+                      ? 'border-primary bg-gradient-to-br from-primary/10 via-primary/5 to-primary/10 shadow-lg scale-[1.02]'
+                      : 'border-muted-foreground/20 hover:border-primary/40 hover:bg-gradient-to-br hover:from-primary/5 hover:to-transparent hover:shadow-md'
+                    }
+                  `}
+                  onClick={openFilePicker}
+                  whileHover={{ scale: 1.01 }}
+                  whileTap={{ scale: 0.99 }}
+                >
+                  <input {...getInputProps()} />
 
-                <UploadIcon
-                  className="mx-auto mb-3 sm:mb-4 text-muted-foreground"
-                  size={isDragActive ? 56 : 48}
-                />
-                <motion.h3
-                  className="text-base sm:text-lg font-medium mb-2"
-                  animate={{ color: isDragActive ? "hsl(var(--primary))" : "hsl(var(--foreground))" }}
-                  transition={{ duration: shouldAnimate ? 0.2 : 0.01 }}
-                >
-                  {isDragActive ? 'Drop file here' : 'Upload File for Processing'}
-                </motion.h3>
-                <p className="text-sm text-muted-foreground mb-3 sm:mb-4 leading-relaxed">
-                  {universalFileApi.isWebEnvironment()
-                    ? 'Drag and drop a file here, or click to browse'
-                    : 'Click to browse for files'
-                  }
-                </p>
-                <Button
-                  variant="outline"
-                  size="lg"
-                  className="mb-3 sm:mb-4 touch-target w-full sm:w-auto"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openFilePicker();
-                  }}
-                >
-                  Choose File
-                </Button>
-              </motion.div>
+                  {/* Animated background pattern */}
+                  <div className="absolute inset-0 opacity-5">
+                    <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-transparent to-primary/20" />
+                    <motion.div
+                      className="absolute inset-0"
+                      animate={{
+                        background: isDragActive
+                          ? 'radial-gradient(circle at 50% 50%, rgba(59, 130, 246, 0.1) 0%, transparent 70%)'
+                          : 'radial-gradient(circle at 50% 50%, transparent 0%, transparent 70%)'
+                      }}
+                      transition={{ duration: 0.3 }}
+                    />
+                  </div>
+
+                  {/* Success state overlay */}
+                  <AnimatePresence>
+                    {uploadSuccess && (
+                      <motion.div
+                        variants={scaleIn}
+                        initial="initial"
+                        animate="animate"
+                        exit="exit"
+                        className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-green-50 via-green-50/90 to-green-100/80 dark:from-green-950 dark:via-green-950/90 dark:to-green-900/80 rounded-xl backdrop-blur-sm"
+                      >
+                        <div className="text-center">
+                          <motion.div
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            transition={{ delay: 0.1, type: "spring", stiffness: 200 }}
+                          >
+                            <CheckCircle2 className="h-12 w-12 text-green-600 mx-auto mb-3" />
+                          </motion.div>
+                          <motion.p
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.2 }}
+                            className="text-green-700 dark:text-green-300 font-semibold"
+                          >
+                            File uploaded successfully!
+                          </motion.p>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Main content */}
+                  <motion.div
+                    animate={{
+                      scale: isDragActive ? 1.05 : 1,
+                      y: isDragActive ? -5 : 0
+                    }}
+                    transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                    className="relative z-10"
+                  >
+                    <motion.div
+                      animate={{
+                        rotate: isDragActive ? [0, -5, 5, 0] : 0,
+                        scale: isDragActive ? 1.1 : 1
+                      }}
+                      transition={{
+                        rotate: { duration: 0.5, repeat: isDragActive ? Infinity : 0 },
+                        scale: { duration: 0.3 }
+                      }}
+                      className="mb-6"
+                    >
+                      <UploadIcon
+                        className={`mx-auto transition-colors duration-300 ${
+                          isDragActive ? 'text-primary' : 'text-muted-foreground'
+                        }`}
+                        size={isDragActive ? 64 : 56}
+                      />
+                    </motion.div>
+
+                    <motion.h3
+                      className="text-xl font-semibold mb-3"
+                      animate={{
+                        color: isDragActive ? "hsl(var(--primary))" : "hsl(var(--foreground))",
+                        scale: isDragActive ? 1.05 : 1
+                      }}
+                      transition={{ duration: 0.3 }}
+                    >
+                      {isDragActive ? (
+                        <span className="flex items-center justify-center gap-2">
+                          <Sparkles className="h-5 w-5" />
+                          Drop your file here
+                          <Sparkles className="h-5 w-5" />
+                        </span>
+                      ) : (
+                        'Upload File for Processing'
+                      )}
+                    </motion.h3>
+
+                    <p className="text-sm text-muted-foreground mb-6 leading-relaxed max-w-md mx-auto">
+                      {universalFileApi.isWebEnvironment()
+                        ? 'Drag and drop a file here, or click the button below to browse your files'
+                        : 'Click the button below to browse and select your files'
+                      }
+                    </p>
+
+                    <motion.div
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                    >
+                      <Button
+                        variant="default"
+                        size="lg"
+                        className="px-8 py-3 font-semibold shadow-lg hover:shadow-xl transition-all duration-300"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openFilePicker();
+                        }}
+                      >
+                        <Upload className="h-4 w-4 mr-2" />
+                        Choose File
+                      </Button>
+                    </motion.div>
+
+                    {/* Supported formats hint */}
+                    <div className="mt-6 pt-4 border-t border-muted-foreground/10">
+                      <p className="text-xs text-muted-foreground">
+                        Supports: JPG, PNG, PDF, DOCX, TXT, MP4, AVI and more
+                      </p>
+                    </div>
+                  </motion.div>
+                </motion.div>
               </motion.div>
             </div>
           ) : (
@@ -268,60 +352,134 @@ export function FileUploadArea() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="space-y-4"
+              transition={{ duration: 0.4, ease: "easeOut" }}
+              className="space-y-6"
             >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-3 min-w-0 flex-1">
-                  {getFileIcon(currentFile.file_type)}
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-medium truncate text-sm sm:text-base">{currentFile.name}</h3>
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
-                      <p className="text-sm text-muted-foreground">
-                        {formatFileSize(currentFile.size)} • {currentFile.file_type}
-                      </p>
-                      {isWebFile && (
-                        <span className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400">
-                          <Globe className="h-3 w-3" />
-                          Web File
+              {/* File preview card */}
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ delay: 0.1, duration: 0.3 }}
+                className="relative p-6 rounded-xl bg-gradient-to-br from-muted/30 via-muted/20 to-background border border-border/50 shadow-sm hover:shadow-md transition-all duration-300"
+              >
+                {/* Success indicator */}
+                <div className="absolute top-4 right-4">
+                  <motion.div
+                    initial={{ scale: 0, rotate: -180 }}
+                    animate={{ scale: 1, rotate: 0 }}
+                    transition={{ delay: 0.3, type: "spring", stiffness: 200 }}
+                    className="p-1.5 rounded-full bg-green-100 dark:bg-green-900/30"
+                  >
+                    <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+                  </motion.div>
+                </div>
+
+                <div className="flex items-start gap-4">
+                  {/* Enhanced file icon */}
+                  <motion.div
+                    initial={{ scale: 0, rotate: -90 }}
+                    animate={{ scale: 1, rotate: 0 }}
+                    transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+                    className="p-3 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20"
+                  >
+                    {getFileIcon(currentFile.file_type)}
+                  </motion.div>
+
+                  {/* File details */}
+                  <div className="flex-1 min-w-0 space-y-3">
+                    <div>
+                      <motion.h3
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.25 }}
+                        className="font-semibold text-lg truncate text-foreground"
+                        title={currentFile.name}
+                      >
+                        {currentFile.name}
+                      </motion.h3>
+
+                      <motion.div
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.3 }}
+                        className="flex items-center gap-3 mt-2"
+                      >
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20">
+                          {currentFile.file_type}
                         </span>
-                      )}
+                        <span className="text-sm text-muted-foreground font-medium">
+                          {formatFileSize(currentFile.size)}
+                        </span>
+                      </motion.div>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {currentFile.last_modified && currentFile.last_modified !== 'Unknown'
-                        ? `Modified: ${new Date(currentFile.last_modified).toLocaleDateString()}`
-                        : 'File ready for processing'
-                      }
-                    </p>
+
+                    {/* File metadata */}
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.35 }}
+                      className="flex items-center gap-2 text-xs text-muted-foreground"
+                    >
+                      <div className="flex items-center gap-1">
+                        <div className="w-2 h-2 rounded-full bg-green-500" />
+                        <span>Ready for processing</span>
+                      </div>
+                      {currentFile.last_modified && currentFile.last_modified !== 'Unknown' && (
+                        <>
+                          <span>•</span>
+                          <span>Modified {new Date(currentFile.last_modified).toLocaleDateString()}</span>
+                        </>
+                      )}
+                    </motion.div>
                   </div>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  onClick={clearFile}
-                  className="text-muted-foreground hover:text-destructive touch-target-sm flex-shrink-0"
-                  title="Remove file"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-              
-              <div className="bg-muted/50 rounded-lg p-3">
-                <div className="flex items-center gap-2 text-sm">
-                  <Info className="h-4 w-4 text-blue-500" />
-                  <span className="font-medium">
-                    {isWebFile ? 'File Name:' : 'File Path:'}
-                  </span>
-                </div>
-                <p className="text-xs text-muted-foreground mt-1 font-mono break-all">
-                  {isWebFile ? currentFile.name : currentFile.path}
-                </p>
-              </div>
 
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={openFilePicker} className="flex-1">
+                {/* Remove button */}
+                <motion.div
+                  initial={{ opacity: 0, scale: 0 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.4 }}
+                  className="absolute top-4 left-4"
+                >
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={clearFile}
+                    className="h-8 w-8 rounded-full bg-background/80 hover:bg-destructive/10 hover:text-destructive border border-border/50 shadow-sm transition-all duration-200"
+                    title="Remove file"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </motion.div>
+              </motion.div>
+
+              {/* Action buttons */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 }}
+                className="flex gap-3"
+              >
+                <Button
+                  variant="outline"
+                  onClick={openFilePicker}
+                  className="flex-1 h-11 font-medium hover:bg-muted/50 transition-all duration-200"
+                >
+                  <Upload className="h-4 w-4 mr-2" />
                   Choose Different File
                 </Button>
-              </div>
+                <Button
+                  variant="default"
+                  className="px-6 h-11 font-medium shadow-md hover:shadow-lg transition-all duration-200"
+                  onClick={() => {
+                    // This could trigger the next step in the workflow
+                    console.log('Process file:', currentFile.name);
+                  }}
+                >
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  Process
+                </Button>
+              </motion.div>
             </motion.div>
           )}
         </AnimatePresence>

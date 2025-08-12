@@ -1,17 +1,18 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Eye, 
-  CheckCircle, 
-  Download, 
-  Settings, 
-  Loader2, 
-  FileText, 
-  Zap, 
+import {
+  Eye,
+  CheckCircle,
+  Download,
+  Settings,
+  Loader2,
+  FileText,
+  Zap,
   Save,
   AlertTriangle,
   Globe,
-  Monitor
+  Monitor,
+  Sparkles
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -124,7 +125,7 @@ export function ProcessingPanel() {
       console.error('Text extraction failed:', error);
       let errorMessage = error instanceof Error ? error.message : 'Text extraction failed';
       if (isWebEnvironment) {
-        errorMessage += '\n\nNote: Web version uses optimized Tesseract.js for OCR.';
+        errorMessage += '\n\nNote: Web version uses PaddleOCR backend via HTTP for enhanced accuracy.';
       }
       setError(errorMessage);
     } finally {
@@ -455,60 +456,93 @@ export function ProcessingPanel() {
       case 'grammar':
         return (
           <div className="space-y-6">
-            {/* Grammar Settings - All White */}
-            <div className="bg-white border border-gray-200 rounded-lg p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <Settings className="h-4 w-4 text-gray-600" />
-                <h4 className="font-medium text-gray-900">Grammar Settings</h4>
+            {/* Enhanced Grammar Settings */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="p-6 rounded-xl bg-gradient-to-br from-background via-muted/20 to-background border border-border/50 shadow-sm"
+            >
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-2.5 rounded-xl bg-gradient-to-br from-primary/20 to-primary/10 border border-primary/20">
+                  <Settings className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <h4 className="font-semibold text-lg">Grammar Settings</h4>
+                  <p className="text-sm text-muted-foreground">Configure AI-powered text analysis</p>
+                </div>
               </div>
-              
+
               <div className="space-y-4">
                 {/* Smart Mode Toggle */}
-                <div className="flex items-center justify-between p-3 border border-gray-100 rounded-md bg-white">
-                  <div className="flex items-center gap-3">
-                    <Checkbox 
+                <motion.div
+                  whileHover={{ scale: 1.01 }}
+                  className="flex items-center justify-between p-4 border border-border/50 rounded-xl bg-gradient-to-r from-background to-muted/20 hover:shadow-sm transition-all duration-200"
+                >
+                  <div className="flex items-center gap-4">
+                    <Checkbox
                       checked={smartMode}
                       onCheckedChange={setSmartMode}
+                      className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                     />
                     <div>
-                      <div className="text-sm font-medium text-gray-900">Smart Mode</div>
-                      <div className="text-xs text-gray-500">AI-powered intelligent corrections</div>
+                      <div className="text-sm font-semibold flex items-center gap-2">
+                        Smart Mode
+                        <Sparkles className="h-4 w-4 text-primary" />
+                      </div>
+                      <div className="text-xs text-muted-foreground">AI-powered intelligent corrections with context awareness</div>
                     </div>
                   </div>
-                  <div className={`px-2 py-1 rounded text-xs font-medium ${
-                    smartMode 
-                      ? 'bg-gray-100 text-gray-700' 
-                      : 'bg-white text-gray-500 border border-gray-200'
-                  }`}>
+                  <motion.div
+                    animate={{
+                      backgroundColor: smartMode ? 'hsl(var(--primary))' : 'hsl(var(--muted))',
+                      color: smartMode ? 'hsl(var(--primary-foreground))' : 'hsl(var(--muted-foreground))'
+                    }}
+                    className="px-3 py-1.5 rounded-full text-xs font-medium border"
+                  >
                     {smartMode ? 'Enabled' : 'Disabled'}
-                  </div>
-                </div>
+                  </motion.div>
+                </motion.div>
 
                 {/* Auto-correct Toggle */}
-                <div className="flex items-center justify-between p-3 border border-gray-100 rounded-md bg-white">
-                  <div className="flex items-center gap-3">
-                    <Checkbox 
+                <motion.div
+                  whileHover={{ scale: 1.01 }}
+                  className="flex items-center justify-between p-4 border border-border/50 rounded-xl bg-gradient-to-r from-background to-muted/20 hover:shadow-sm transition-all duration-200"
+                >
+                  <div className="flex items-center gap-4">
+                    <Checkbox
                       checked={autoCorrect}
                       onCheckedChange={setAutoCorrect}
+                      className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                     />
                     <div>
-                      <div className="text-sm font-medium text-gray-900">Auto-apply All</div>
-                      <div className="text-xs text-gray-500">Apply all found corrections automatically</div>
+                      <div className="text-sm font-semibold flex items-center gap-2">
+                        Auto-apply All
+                        <Zap className="h-4 w-4 text-orange-500" />
+                      </div>
+                      <div className="text-xs text-muted-foreground">Automatically apply all found corrections</div>
                     </div>
                   </div>
-                </div>
+                </motion.div>
 
                 {/* Selective Auto-Apply */}
-                <div className="pt-2 border-t border-gray-100">
-                  <div className="text-xs font-medium text-gray-700 mb-3">Auto-apply for specific types:</div>
-                  <div className="grid grid-cols-2 gap-2">
+                <div className="pt-4 border-t border-border/30">
+                  <div className="text-sm font-medium text-foreground mb-4 flex items-center gap-2">
+                    <Zap className="h-4 w-4 text-primary" />
+                    Auto-apply for specific types:
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
                     {[
-                      { key: 'spelling', label: 'Spelling', icon: 'Aa' },
-                      { key: 'punctuation', label: 'Punctuation', icon: '.,;' },
-                      { key: 'grammar', label: 'Grammar', icon: '✓' },
-                      { key: 'style', label: 'Style', icon: '✦' }
+                      { key: 'spelling', label: 'Spelling', icon: '📝', color: 'text-red-500' },
+                      { key: 'punctuation', label: 'Punctuation', icon: '🔤', color: 'text-blue-500' },
+                      { key: 'grammar', label: 'Grammar', icon: '✅', color: 'text-green-500' },
+                      { key: 'style', label: 'Style', icon: '✨', color: 'text-purple-500' }
                     ].map((type) => (
-                      <label key={type.key} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded cursor-pointer bg-white">
+                      <motion.label
+                        key={type.key}
+                        className="flex items-center gap-3 p-3 hover:bg-muted/30 rounded-xl cursor-pointer border border-border/30 hover:border-border/50 transition-all duration-200 group"
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                      >
                         <Checkbox
                           checked={autoApplyTypes.includes(type.key)}
                           onCheckedChange={(checked) => {
@@ -518,190 +552,382 @@ export function ProcessingPanel() {
                               setAutoApplyTypes(prev => prev.filter(t => t !== type.key));
                             }
                           }}
-                          className="h-3 w-3"
+                          className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                         />
-                        <span className="text-xs text-gray-600 font-mono">{type.icon}</span>
-                        <span className="text-xs text-gray-700">{type.label}</span>
-                      </label>
+                        <span className={`text-lg ${type.color}`}>{type.icon}</span>
+                        <span className="text-sm font-medium group-hover:text-primary transition-colors">{type.label}</span>
+                      </motion.label>
                     ))}
                   </div>
                 </div>
               </div>
-            </div>
+            </motion.div>
 
-            {/* Action Buttons */}
-            <div className="flex gap-3">
+            {/* Enhanced Action Buttons */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="flex gap-3"
+            >
               <Button
                 onClick={handleGrammarCheck}
                 disabled={!editedText.trim() || isCheckingGrammar}
-                className="flex-1 bg-gray-900 hover:bg-gray-800 text-white"
+                className="flex-1 h-14 text-base font-semibold shadow-lg hover:shadow-xl transition-all duration-300 relative overflow-hidden group"
                 size="lg"
               >
-                <div className="flex items-center justify-center">
+                {/* Animated background */}
+                <motion.div
+                  className="absolute inset-0 bg-gradient-to-r from-primary via-primary/90 to-primary opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                  animate={{
+                    background: isCheckingGrammar
+                      ? 'linear-gradient(90deg, hsl(var(--primary)) 0%, hsl(var(--primary))/0.8 50%, hsl(var(--primary)) 100%)'
+                      : 'linear-gradient(90deg, hsl(var(--primary)) 0%, hsl(var(--primary))/0.9 50%, hsl(var(--primary)) 100%)'
+                  }}
+                />
+
+                <div className="relative z-10 flex items-center justify-center">
                   {isCheckingGrammar ? (
                     <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      <span>Analyzing...</span>
+                      <motion.div
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                      >
+                        <Loader2 className="h-5 w-5 mr-3" />
+                      </motion.div>
+                      <span>Analyzing text...</span>
+                      <motion.div
+                        animate={{ opacity: [1, 0.5, 1] }}
+                        transition={{ duration: 1.5, repeat: Infinity }}
+                        className="ml-2"
+                      >
+                        <Sparkles className="h-4 w-4" />
+                      </motion.div>
                     </>
                   ) : (
                     <>
-                      <CheckCircle className="h-4 w-4 mr-2" />
-                      <span>{smartMode ? 'Smart Check' : 'Check Grammar'}</span>
+                      <motion.div
+                        whileHover={{ scale: 1.1, rotate: 5 }}
+                        transition={{ type: "spring", stiffness: 400 }}
+                      >
+                        <CheckCircle className="h-5 w-5 mr-3" />
+                      </motion.div>
+                      <span>{smartMode ? 'Smart Grammar Check' : 'Check Grammar'}</span>
+                      {editedText.trim() && (
+                        <motion.div
+                          animate={{ x: [0, 5, 0] }}
+                          transition={{ duration: 2, repeat: Infinity }}
+                          className="ml-2"
+                        >
+                          <Zap className="h-4 w-4" />
+                        </motion.div>
+                      )}
                     </>
                   )}
                 </div>
               </Button>
 
               {autoApplyTypes.length > 0 && !isCheckingGrammar && (
-                <Button
-                  onClick={() => handleSelectiveCorrections(autoApplyTypes)}
-                  variant="outline"
-                  size="lg"
-                  className="px-4 border-gray-300 hover:bg-gray-50 bg-white"
-                  title="Apply selected correction types"
+                <motion.div
+                  initial={{ scale: 0, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ delay: 0.3 }}
                 >
-                  <Zap className="h-4 w-4" />
-                </Button>
+                  <Button
+                    onClick={() => handleSelectiveCorrections(autoApplyTypes)}
+                    variant="outline"
+                    size="lg"
+                    className="px-6 h-14 border-2 hover:bg-primary/5 hover:border-primary/30 transition-all duration-200 group"
+                    title="Apply selected correction types"
+                  >
+                    <motion.div
+                      whileHover={{ scale: 1.2, rotate: 15 }}
+                      transition={{ type: "spring", stiffness: 400 }}
+                    >
+                      <Zap className="h-5 w-5 text-primary group-hover:text-primary" />
+                    </motion.div>
+                  </Button>
+                </motion.div>
               )}
-            </div>
+            </motion.div>
 
-            {/* Processing Progress */}
-            {isCheckingGrammar && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="bg-white border border-gray-200 rounded-lg p-4"
-              >
-                <Progress value={undefined} className="w-full mb-3" />
-                <p className="text-sm text-gray-600 text-center">
-                  {smartMode ? 'AI is analyzing your text...' : 'Checking grammar and style...'}
-                </p>
-              </motion.div>
-            )}
-
-            {/* Grammar Results - All White */}
-            {grammarResult && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="space-y-4"
-              >
-                {/* Summary Card - White */}
-                <div className="bg-white border border-gray-200 rounded-lg p-5">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2">
-                      {grammarResult.error_count === 0 ? (
-                        <CheckCircle className="h-5 w-5 text-green-600" />
-                      ) : (
-                        <AlertTriangle className="h-5 w-5 text-amber-500" />
-                      )}
-                      <h4 className="font-medium text-gray-900">Analysis Complete</h4>
-                    </div>
-                    <div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                      {grammarResult.processing_time.toFixed(2)}s
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-2xl font-light text-gray-900">
-                        {grammarResult.error_count}
-                      </span>
-                      <span className="text-sm text-gray-600">
-                        {grammarResult.error_count === 0 ? 'Perfect!' : grammarResult.error_count === 1 ? 'issue found' : 'issues found'}
-                      </span>
-                    </div>
-                    
-                    {grammarResult.error_count > 0 && (
-                      <Button
-                        onClick={() => handleSelectiveCorrections(['spelling', 'punctuation'])}
-                        size="sm"
-                        variant="outline"
-                        className="border-gray-300 bg-white hover:bg-gray-50"
+            {/* Enhanced Processing Progress */}
+            <AnimatePresence>
+              {isCheckingGrammar && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -20, scale: 0.95 }}
+                  transition={{ duration: 0.4, ease: "easeOut" }}
+                  className="p-6 rounded-xl bg-gradient-to-br from-primary/5 via-primary/3 to-transparent border border-primary/20 shadow-sm"
+                >
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-center gap-3">
+                      <motion.div
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
                       >
-                        <Zap className="h-3 w-3 mr-1" />
-                        Fix Safe Issues
-                      </Button>
-                    )}
-                  </div>
-                </div>
+                        <Loader2 className="h-6 w-6 text-primary" />
+                      </motion.div>
+                      <h3 className="text-lg font-semibold text-primary">
+                        {smartMode ? 'AI Analysis in Progress' : 'Grammar Check in Progress'}
+                      </h3>
+                    </div>
 
-                {/* Errors List - All White Backgrounds */}
-                {grammarResult.errors.length > 0 && (
-                  <div className="space-y-3 max-h-80 overflow-y-auto">
-                    <div className="text-sm font-medium text-gray-700 px-1">Issues Found</div>
-                    {grammarResult.errors.map((error, index) => {
-                      const typeInfo = {
-                        spelling: { color: 'border-l-red-400', label: 'Spelling' },
-                        grammar: { color: 'border-l-orange-400', label: 'Grammar' },
-                        punctuation: { color: 'border-l-blue-400', label: 'Punctuation' },
-                        style: { color: 'border-l-purple-400', label: 'Style' },
-                        default: { color: 'border-l-gray-400', label: 'Other' }
-                      };
+                    <Progress value={undefined} className="w-full h-2" />
 
-                      const errorType = error.error_type || 'default';
-                      const info = typeInfo[errorType as keyof typeof typeInfo] || typeInfo.default;
+                    <motion.div
+                      animate={{ opacity: [1, 0.6, 1] }}
+                      transition={{ duration: 2, repeat: Infinity }}
+                      className="text-center space-y-2"
+                    >
+                      <p className="text-sm font-medium text-foreground">
+                        {smartMode ? 'AI is analyzing your text with advanced language models...' : 'Checking grammar, spelling, and style...'}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Using LanguageTool for comprehensive language analysis
+                      </p>
+                    </motion.div>
 
-                      return (
+                    {/* Analysis steps indicator */}
+                    <div className="flex justify-center gap-2 mt-4">
+                      {['Parsing', 'Analysis', 'Suggestions'].map((step, index) => (
                         <motion.div
-                          key={index}
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: index * 0.05 }}
-                          className={`bg-white border-l-4 ${info.color} border border-gray-200 rounded-r-lg p-4 hover:shadow-sm transition-shadow`}
+                          key={step}
+                          className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted/50 border"
+                          animate={{
+                            backgroundColor: index === 1 ? 'hsl(var(--primary)/0.1)' : 'hsl(var(--muted)/0.5)',
+                            borderColor: index === 1 ? 'hsl(var(--primary)/0.3)' : 'hsl(var(--border))'
+                          }}
+                          transition={{ duration: 2, repeat: Infinity }}
                         >
-                          <div className="flex items-start justify-between gap-4">
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-2">
-                                <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                                  {info.label}
-                                </span>
-                                {error.confidence && (
-                                  <span className="text-xs text-gray-400">
-                                    {Math.round(error.confidence * 100)}%
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-sm text-gray-800 mb-3 leading-relaxed">
-                                {error.message}
-                              </p>
-                              {error.suggestions.length > 0 && (
-                                <div className="space-y-2">
-                                  <div className="text-xs text-gray-500">Suggestions:</div>
-                                  <div className="flex flex-wrap gap-2">
-                                    {error.suggestions.slice(0, 3).map((suggestion, suggestionIndex) => (
-                                      <Button
-                                        key={suggestionIndex}
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => applyCorrection(index)}
-                                        className="h-7 px-2 text-xs bg-white border border-gray-200 hover:bg-gray-50 rounded"
-                                        title={`Apply: ${suggestion}`}
-                                      >
-                                        {suggestion}
-                                      </Button>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => applyCorrection(index)}
-                              className="h-7 w-7 shrink-0 hover:bg-gray-50 bg-white"
-                              title="Apply first suggestion"
-                            >
-                              <Zap className="h-3 w-3" />
-                            </Button>
-                          </div>
+                          <div className={`w-2 h-2 rounded-full ${index === 1 ? 'bg-primary' : 'bg-muted-foreground/50'}`} />
+                          <span className="text-xs font-medium">{step}</span>
                         </motion.div>
-                      );
-                    })}
+                      ))}
+                    </div>
                   </div>
-                )}
-              </motion.div>
-            )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Enhanced Grammar Results */}
+            <AnimatePresence>
+              {grammarResult && (
+                <motion.div
+                  initial={{ opacity: 0, y: 30, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  transition={{ duration: 0.5, ease: "easeOut" }}
+                  className="space-y-6"
+                >
+                  {/* Enhanced Summary Card */}
+                  <motion.div
+                    initial={{ scale: 0.95, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ delay: 0.1 }}
+                    className={`relative overflow-hidden rounded-xl p-6 border shadow-lg ${
+                      grammarResult.error_count === 0
+                        ? 'bg-gradient-to-br from-green-50 via-green-50/80 to-green-100/60 border-green-200/60'
+                        : 'bg-gradient-to-br from-orange-50 via-orange-50/80 to-orange-100/60 border-orange-200/60'
+                    }`}
+                  >
+                    {/* Success/Warning indicator */}
+                    <div className="absolute top-4 right-4">
+                      <motion.div
+                        initial={{ scale: 0, rotate: -180 }}
+                        animate={{ scale: 1, rotate: 0 }}
+                        transition={{ delay: 0.3, type: "spring", stiffness: 200 }}
+                        className={`p-2 rounded-full ${
+                          grammarResult.error_count === 0
+                            ? 'bg-green-100 dark:bg-green-900/30'
+                            : 'bg-orange-100 dark:bg-orange-900/30'
+                        }`}
+                      >
+                        {grammarResult.error_count === 0 ? (
+                          <CheckCircle className="h-6 w-6 text-green-600 dark:text-green-400" />
+                        ) : (
+                          <AlertTriangle className="h-6 w-6 text-orange-600 dark:text-orange-400" />
+                        )}
+                      </motion.div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-3">
+                        <motion.div
+                          initial={{ scale: 0, rotate: -90 }}
+                          animate={{ scale: 1, rotate: 0 }}
+                          transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+                          className={`p-3 rounded-xl border ${
+                            grammarResult.error_count === 0
+                              ? 'bg-green-100 border-green-200 text-green-600'
+                              : 'bg-orange-100 border-orange-200 text-orange-600'
+                          }`}
+                        >
+                          <Sparkles className="h-6 w-6" />
+                        </motion.div>
+                        <div>
+                          <h3 className={`text-xl font-bold ${
+                            grammarResult.error_count === 0 ? 'text-green-800' : 'text-orange-800'
+                          }`}>
+                            Analysis Complete!
+                          </h3>
+                          <div className="flex items-center gap-3 mt-1">
+                            <span className={`text-sm font-medium ${
+                              grammarResult.error_count === 0 ? 'text-green-700' : 'text-orange-700'
+                            }`}>
+                              {grammarResult.error_count === 0 ? 'Perfect text!' : `${grammarResult.error_count} ${grammarResult.error_count === 1 ? 'issue' : 'issues'} found`}
+                            </span>
+                            <span className="text-xs text-muted-foreground bg-background/60 px-2 py-1 rounded-full">
+                              {grammarResult.processing_time.toFixed(2)}s
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-baseline gap-3">
+                          <motion.span
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            transition={{ delay: 0.4, type: "spring", stiffness: 200 }}
+                            className={`text-4xl font-bold ${
+                              grammarResult.error_count === 0 ? 'text-green-600' : 'text-orange-600'
+                            }`}
+                          >
+                            {grammarResult.error_count}
+                          </motion.span>
+                          <span className="text-lg text-muted-foreground">
+                            {grammarResult.error_count === 0 ? 'Issues' : grammarResult.error_count === 1 ? 'Issue' : 'Issues'}
+                          </span>
+                        </div>
+
+                        {grammarResult.error_count > 0 && (
+                          <motion.div
+                            initial={{ scale: 0, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            transition={{ delay: 0.5 }}
+                          >
+                            <Button
+                              onClick={() => handleSelectiveCorrections(['spelling', 'punctuation'])}
+                              size="sm"
+                              className="bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 font-medium"
+                            >
+                              <Zap className="h-4 w-4 mr-2" />
+                              Fix Safe Issues
+                            </Button>
+                          </motion.div>
+                        )}
+                      </div>
+                    </div>
+                  </motion.div>
+
+                  {/* Enhanced Errors List */}
+                  {grammarResult.errors.length > 0 && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.3 }}
+                      className="space-y-4 max-h-96 overflow-y-auto pr-2"
+                    >
+                      <div className="flex items-center gap-2 px-1">
+                        <AlertTriangle className="h-4 w-4 text-orange-500" />
+                        <h4 className="text-base font-semibold text-foreground">Issues Found</h4>
+                      </div>
+
+                      <div className="space-y-3">
+                        {grammarResult.errors.map((error, index) => {
+                          const typeInfo = {
+                            spelling: { color: 'border-l-red-400 bg-red-50/50', label: 'Spelling', icon: '📝', textColor: 'text-red-700' },
+                            grammar: { color: 'border-l-orange-400 bg-orange-50/50', label: 'Grammar', icon: '📚', textColor: 'text-orange-700' },
+                            punctuation: { color: 'border-l-blue-400 bg-blue-50/50', label: 'Punctuation', icon: '🔤', textColor: 'text-blue-700' },
+                            style: { color: 'border-l-purple-400 bg-purple-50/50', label: 'Style', icon: '✨', textColor: 'text-purple-700' },
+                            default: { color: 'border-l-gray-400 bg-gray-50/50', label: 'Other', icon: '❓', textColor: 'text-gray-700' }
+                          };
+
+                          const errorType = error.error_type || 'default';
+                          const info = typeInfo[errorType as keyof typeof typeInfo] || typeInfo.default;
+
+                          return (
+                            <motion.div
+                              key={index}
+                              initial={{ opacity: 0, x: -20 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              transition={{ delay: 0.4 + index * 0.05 }}
+                              className={`border-l-4 ${info.color} border border-border/50 rounded-r-xl p-5 hover:shadow-md transition-all duration-200 group`}
+                            >
+                              <div className="flex items-start justify-between gap-4">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-3 mb-3">
+                                    <span className="text-lg">{info.icon}</span>
+                                    <div className="flex items-center gap-2">
+                                      <span className={`text-xs font-bold uppercase tracking-wider ${info.textColor}`}>
+                                        {info.label}
+                                      </span>
+                                      {error.confidence && (
+                                        <span className="text-xs text-muted-foreground bg-muted/50 px-2 py-0.5 rounded-full">
+                                          {Math.round(error.confidence * 100)}% confidence
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  <p className="text-sm text-foreground mb-4 leading-relaxed font-medium">
+                                    {error.message}
+                                  </p>
+
+                                  {error.suggestions.length > 0 && (
+                                    <div className="space-y-3">
+                                      <div className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                                        <Sparkles className="h-3 w-3" />
+                                        Suggestions:
+                                      </div>
+                                      <div className="flex flex-wrap gap-2">
+                                        {error.suggestions.slice(0, 3).map((suggestion, suggestionIndex) => (
+                                          <motion.div
+                                            key={suggestionIndex}
+                                            whileHover={{ scale: 1.05 }}
+                                            whileTap={{ scale: 0.95 }}
+                                          >
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              onClick={() => applyCorrection(index)}
+                                              className="h-8 px-3 text-xs bg-background/80 border border-border/50 hover:bg-primary/10 hover:border-primary/30 hover:text-primary rounded-lg font-medium transition-all duration-200"
+                                              title={`Apply: ${suggestion}`}
+                                            >
+                                              {suggestion}
+                                            </Button>
+                                          </motion.div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+
+                                <motion.div
+                                  whileHover={{ scale: 1.1 }}
+                                  whileTap={{ scale: 0.9 }}
+                                >
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => applyCorrection(index)}
+                                    className="h-9 w-9 shrink-0 rounded-xl hover:bg-primary/10 hover:text-primary border border-border/30 hover:border-primary/30 transition-all duration-200"
+                                    title="Apply first suggestion"
+                                  >
+                                    <Zap className="h-4 w-4" />
+                                  </Button>
+                                </motion.div>
+                              </div>
+                            </motion.div>
+                          );
+                        })}
+                      </div>
+                    </motion.div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         );
 
@@ -824,92 +1050,181 @@ export function ProcessingPanel() {
   };
 
   return (
-    <Card className="h-fit">
-      <CardHeader>
+    <Card className="h-fit overflow-hidden border-0 shadow-xl bg-gradient-to-br from-background via-background to-muted/20">
+      <CardHeader className="pb-4 bg-gradient-to-r from-primary/5 via-primary/3 to-transparent border-b border-border/50">
         <CardTitle className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-2">
-              <Zap className="h-5 w-5 text-primary" />
-              <span>Processing Center</span>
+          <div className="flex items-center gap-4">
+            <div className="p-3 rounded-xl bg-gradient-to-br from-primary/20 to-primary/10 border border-primary/20 shadow-sm">
+              <Zap className="h-6 w-6 text-primary" />
             </div>
-            <div className="flex items-center gap-1 text-xs text-muted-foreground bg-muted/50 px-2 py-0.5 rounded-full">
-              {isWebEnvironment ? (
-                <>
-                  <Globe className="h-3 w-3" />
-                  Web
-                </>
-              ) : (
-                <>
-                  <Monitor className="h-3 w-3" />
-                  Desktop
-                </>
-              )}
+            <div>
+              <h2 className="text-xl font-bold bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent">
+                Processing Center
+              </h2>
+              <div className="flex items-center gap-3 mt-1">
+                <p className="text-sm text-muted-foreground">
+                  Complete OCR and grammar workflow
+                </p>
+                <div className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-muted/50 border border-border/50">
+                  {isWebEnvironment ? (
+                    <>
+                      <Globe className="h-3 w-3 text-blue-500" />
+                      <span className="text-xs font-medium">Web</span>
+                    </>
+                  ) : (
+                    <>
+                      <Monitor className="h-3 w-3 text-green-500" />
+                      <span className="text-xs font-medium">Desktop</span>
+                    </>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-2">
             {activeTab === 'ocr' && currentFile?.file_type === 'Image' && (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}
-                className="h-7 w-7"
-                title="Advanced OCR options"
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
               >
-                <Settings className="h-3.5 w-3.5" />
-              </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}
+                  className={`h-9 w-9 rounded-xl transition-all duration-200 ${
+                    showAdvancedOptions
+                      ? 'bg-primary/10 text-primary border border-primary/20'
+                      : 'hover:bg-muted/50'
+                  }`}
+                  title="Advanced OCR options"
+                >
+                  <motion.div
+                    animate={{ rotate: showAdvancedOptions ? 180 : 0 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <Settings className="h-4 w-4" />
+                  </motion.div>
+                </Button>
+              </motion.div>
             )}
           </div>
         </CardTitle>
       </CardHeader>
       
-      <CardContent className="space-y-4">
-        {/* Tab Navigation */}
-        <div className="flex gap-1 p-1 bg-muted rounded-lg">
-          {tabs.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
-            
-            return (
-              <Button
-                key={tab.id}
-                variant="ghost"
-                size="sm"
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex-1 transition-all ${
-                  isActive 
-                    ? 'bg-background shadow-sm text-foreground border border-border/50' 
-                    : 'hover:bg-background/50'
-                }`}
-                title={tab.description}
-              >
-                <Icon className={`h-4 w-4 ${isSmallScreen ? '' : 'mr-2'}`} />
-                <span className={`${isSmallScreen ? 'hidden xs:inline text-xs' : 'hidden sm:inline text-sm'}`}>
-                  {getTabDisplayLabel(tab, isSmallScreen)}
-                </span>
-              </Button>
-            );
-          })}
+      <CardContent className="space-y-6">
+        {/* Enhanced Tab Navigation */}
+        <div className="relative p-1.5 bg-gradient-to-r from-muted/80 via-muted/60 to-muted/80 rounded-xl border border-border/50 shadow-inner">
+          <div className="flex gap-1">
+            {tabs.map((tab, index) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+
+              return (
+                <motion.div
+                  key={tab.id}
+                  className="flex-1 relative"
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`w-full h-12 relative overflow-hidden transition-all duration-300 ${
+                      isActive
+                        ? 'bg-background shadow-lg text-foreground border border-border/50 font-semibold'
+                        : 'hover:bg-background/30 text-muted-foreground hover:text-foreground'
+                    }`}
+                    title={tab.description}
+                  >
+                    {/* Active tab background gradient */}
+                    {isActive && (
+                      <motion.div
+                        layoutId="activeTab"
+                        className="absolute inset-0 bg-gradient-to-br from-primary/5 via-primary/3 to-transparent rounded-md"
+                        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                      />
+                    )}
+
+                    <div className="relative z-10 flex items-center justify-center gap-2">
+                      <motion.div
+                        animate={{
+                          scale: isActive ? 1.1 : 1,
+                          rotate: isActive ? [0, -5, 5, 0] : 0
+                        }}
+                        transition={{
+                          scale: { duration: 0.2 },
+                          rotate: { duration: 0.5, repeat: isActive ? 1 : 0 }
+                        }}
+                      >
+                        <Icon className={`h-5 w-5 ${isActive ? 'text-primary' : ''}`} />
+                      </motion.div>
+                      <span className={`font-medium ${
+                        isSmallScreen
+                          ? 'hidden xs:inline text-xs'
+                          : 'text-sm'
+                      }`}>
+                        {getTabDisplayLabel(tab, isSmallScreen)}
+                      </span>
+                    </div>
+
+                    {/* Progress indicator for completed steps */}
+                    {((tab.id === 'ocr' && ocrResult) ||
+                      (tab.id === 'grammar' && grammarResult) ||
+                      (tab.id === 'export' && editedText)) && (
+                      <motion.div
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        className="absolute top-1 right-1 w-2 h-2 bg-green-500 rounded-full"
+                      />
+                    )}
+                  </Button>
+                </motion.div>
+              );
+            })}
+          </div>
         </div>
 
-        {/* Tab Content */}
+        {/* Enhanced Tab Content */}
         <AnimatePresence mode="wait">
           <motion.div
             key={activeTab}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.2 }}
+            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.95 }}
+            transition={{ duration: 0.4, ease: "easeOut" }}
+            className="min-h-[200px]"
           >
             {renderTabContent()}
           </motion.div>
         </AnimatePresence>
 
-        {/* No File Selected */}
+        {/* Enhanced No File Selected */}
         {!currentFile && activeTab === 'ocr' && (
-          <div className="text-center py-6 text-muted-foreground">
-            <FileText className="h-8 w-8 mx-auto mb-2 opacity-50" />
-            <p className="text-sm">Upload a file to start processing</p>
-          </div>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.5 }}
+            className="text-center py-12 px-6 rounded-xl bg-gradient-to-br from-muted/30 via-muted/20 to-transparent border-2 border-dashed border-border/30"
+          >
+            <motion.div
+              animate={{
+                y: [0, -8, 0],
+                opacity: [0.6, 1, 0.6]
+              }}
+              transition={{
+                duration: 3,
+                repeat: Infinity,
+                ease: "easeInOut"
+              }}
+            >
+              <FileText className="h-16 w-16 mx-auto mb-4 text-muted-foreground/50" />
+            </motion.div>
+            <h3 className="text-lg font-semibold mb-2">No File Selected</h3>
+            <p className="text-sm text-muted-foreground max-w-sm mx-auto leading-relaxed">
+              Upload a file in the File Upload section to begin the OCR and grammar checking process
+            </p>
+          </motion.div>
         )}
       </CardContent>
     </Card>

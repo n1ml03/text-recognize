@@ -1,11 +1,15 @@
 mod error;
 mod utils;
-mod services;
+pub mod services;
 mod commands;
+
+#[cfg(test)]
+mod test_harper;
 
 use commands::*;
 use services::*;
 use tokio::sync::Mutex;
+use tauri::{Manager, Listener};
 
 // Initialize services
 pub fn create_ocr_state() -> OCRState {
@@ -40,6 +44,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             // OCR commands
             process_image_ocr,
+            process_video_ocr,
+            shutdown_ocr_service,
             get_preprocessing_preview,
             validate_image_file,
             get_supported_image_formats,
@@ -64,7 +70,6 @@ pub fn run() {
             get_supported_formats,
             get_all_supported_formats,
             extract_text_from_document,
-            extract_text_from_pdf,
             extract_frames_from_video,
             format_file_size,
             create_backup_path,
@@ -85,9 +90,25 @@ pub fn run() {
             batch_export_results,
             get_batch_statistics,
         ])
-        .setup(|_app| {
+        .setup(|app| {
             // Setup complete
             println!("OCR & Grammar Assistant started successfully!");
+
+            // Register cleanup handler for app shutdown
+            let app_handle = app.handle().clone();
+            app.listen("tauri://close-requested", move |_event| {
+                // Perform cleanup when app is closing
+                let handle = app_handle.clone();
+                tauri::async_runtime::spawn(async move {
+                    if let Some(ocr_state) = handle.try_state::<OCRState>() {
+                        let ocr_service = ocr_state.0.lock().await;
+                        if let Err(e) = ocr_service.shutdown().await {
+                            log::error!("Error during OCR service shutdown: {}", e);
+                        }
+                    }
+                });
+            });
+
             Ok(())
         })
         .run(tauri::generate_context!())

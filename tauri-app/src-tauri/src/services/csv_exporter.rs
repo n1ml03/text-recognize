@@ -49,9 +49,6 @@ pub struct ExportStatistics {
 pub struct CSVExporterService;
 
 impl CSVExporterService {
-    pub fn new() -> Self {
-        Self
-    }
 
     pub fn export_record(
         file_path: &str,

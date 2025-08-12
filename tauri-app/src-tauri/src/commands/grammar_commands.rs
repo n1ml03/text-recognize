@@ -3,6 +3,7 @@ use crate::error::ToTauriResult;
 use tokio::sync::Mutex;
 use tauri::State;
 
+
 pub struct GrammarState(pub Mutex<GrammarService>);
 
 #[tauri::command]
@@ -72,7 +73,7 @@ pub async fn set_grammar_config(
 #[tauri::command]
 pub async fn get_grammar_providers() -> Result<Vec<String>, String> {
     Ok(vec![
-        "LanguageTool".to_string(),
+        "Harper".to_string(),
         "OfflineRules".to_string(),
         "Hybrid".to_string(),
     ])
@@ -113,13 +114,13 @@ pub async fn apply_selective_corrections(
     state: State<'_, GrammarState>,
 ) -> Result<String, String> {
     let grammar_service = state.0.lock().await;
-    
+
     // First get all errors
     let result = grammar_service
         .check_text(&text, false)
         .await
         .map_err(|e| format!("Failed to check text: {}", e))?;
-    
+
     // Filter errors by type
     let filtered_indices: Vec<usize> = result.errors.iter()
         .enumerate()
@@ -137,9 +138,11 @@ pub async fn apply_selective_corrections(
         })
         .map(|(i, _)| i)
         .collect();
-    
+
     grammar_service
         .apply_specific_corrections(&text, &filtered_indices)
         .await
         .map_err(|e| format!("Failed to apply selective corrections: {}", e))
 }
+
+

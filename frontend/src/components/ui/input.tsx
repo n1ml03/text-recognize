@@ -1,6 +1,6 @@
 import * as React from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { cn } from "@/lib/utils"
+import { cn, themeColors } from "@/lib/utils"
 import { Eye, EyeOff, Check, AlertCircle } from "lucide-react"
 
 export interface InputProps
@@ -101,7 +101,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
           {leftIcon && (
             <motion.div
               className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground z-10"
-              animate={{ color: isFocused ? "hsl(var(--primary))" : "hsl(var(--muted-foreground))" }}
+              animate={{ color: isFocused ? themeColors.primary() : themeColors.mutedForeground() }}
               transition={{ duration: 0.2 }}
             >
               {leftIcon}

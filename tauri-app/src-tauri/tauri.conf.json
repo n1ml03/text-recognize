@@ -6,8 +6,8 @@
   "build": {
     "frontendDist": "../frontend/dist",
     "devUrl": "http://localhost:5173",
-    "beforeDevCommand": "cd ../frontend && bun run dev",
-    "beforeBuildCommand": "cd ../frontend && bun run build"
+    "beforeDevCommand": "",
+    "beforeBuildCommand": "cd ../frontend && bun run build && python3 ../build_executable.py"
   },
   "app": {
     "windows": [
@@ -36,6 +36,8 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "resources": [],
+    "externalBin": []
   }
 }

@@ -175,34 +175,4 @@ macro_rules! batch_error {
     };
 }
 
-/// Helper functions for common error scenarios
-pub mod helpers {
-    use super::*;
 
-    pub fn file_not_found(path: &str) -> AppError {
-        AppError::new(ErrorCode::FileNotFound, format!("File not found: {}", path))
-    }
-
-    pub fn invalid_file_format(path: &str, expected: &str) -> AppError {
-        AppError::with_details(
-            ErrorCode::InvalidFileFormat,
-            format!("Invalid file format for: {}", path),
-            format!("Expected: {}", expected),
-        )
-    }
-
-    pub fn service_unavailable(service: &str) -> AppError {
-        AppError::new(
-            ErrorCode::ServiceUnavailable,
-            format!("{} service is currently unavailable", service),
-        )
-    }
-
-    pub fn validation_failed(field: &str, reason: &str) -> AppError {
-        AppError::with_details(
-            ErrorCode::DataValidation,
-            format!("Validation failed for {}", field),
-            reason,
-        )
-    }
-}

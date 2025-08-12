@@ -5,9 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:network": "vite --host 0.0.0.0 --port 5173",
+    "dev:server": "vite --host 0.0.0.0 --port 5173 --cors",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "preview:network": "vite preview --host 0.0.0.0 --port 4173",
+    "preview:server": "vite preview --host 0.0.0.0 --port 4173 --cors",
+    "start:network": "bun run build && bun run preview:network"
   },
   "dependencies": {
     "@radix-ui/react-progress": "^1.1.7",
@@ -29,7 +34,6 @@
     "react-dropzone": "^14.3.8",
     "tailwind-merge": "^3.3.1",
     "tailwindcss": "^4.1.11",
-    "tesseract.js": "6.0.1",
     "zustand": "^5.0.7"
   },
   "devDependencies": {

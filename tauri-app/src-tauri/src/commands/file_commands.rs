@@ -64,13 +64,10 @@ pub async fn ensure_directory_exists(dir_path: String) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn extract_text_from_document(file_path: String) -> Result<String, String> {
-    FileHandlerService::extract_text_from_document(&file_path).to_tauri_result()
+    FileHandlerService::extract_text_from_document(&file_path).await.to_tauri_result()
 }
 
-#[tauri::command]
-pub async fn extract_text_from_pdf(file_path: String) -> Result<String, String> {
-    FileHandlerService::extract_text_from_pdf(&file_path).to_tauri_result()
-}
+
 
 #[tauri::command]
 pub async fn extract_frames_from_video(
@@ -78,7 +75,7 @@ pub async fn extract_frames_from_video(
     output_dir: String,
     frame_interval: Option<u32>,
 ) -> Result<Vec<String>, String> {
-    FileHandlerService::extract_frames_from_video(&video_path, &output_dir, frame_interval).to_tauri_result()
+    FileHandlerService::extract_frames_from_video(&video_path, &output_dir, frame_interval).await.to_tauri_result()
 }
 
 #[tauri::command]

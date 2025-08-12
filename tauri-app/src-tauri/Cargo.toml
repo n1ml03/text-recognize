@@ -29,19 +29,16 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
 # Async runtime
-tokio = { version = "1.0", features = ["full"] }
+tokio = { version = "1.47.1", features = ["full"] }
 
-# Core processing dependencies - streamlined for optimal performance
-image = "0.25"
-imageproc = "0.25"
-# Tesseract OCR - single unified OCR engine
-leptess = "0.14"
+# Harper grammar checker - native Rust implementation
+harper-core = "0.56.0"
 
-# Video processing
-ffmpeg-next = { version = "7.0", optional = true }
+# Regular expressions for advanced grammar patterns
+regex = "1.10"
 
-# HTTP client for LanguageTool grammar checking
-reqwest = { version = "0.12", features = ["json"] }
+# HTTP client for OCR service
+reqwest = { version = "0.12", features = ["json", "http2", "gzip", "brotli", "deflate"] }
 
 # CSV handling
 csv = "1.3"

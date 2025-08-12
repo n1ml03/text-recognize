@@ -87,9 +87,8 @@ const OCR_CONFIG = {
   READING_SPEED_WPM: 200, // Words per minute for reading time calculation
 } as const;
 
-// Streamlined Tesseract OCR processor (for web environment)
+// Streamlined PaddleOCR processor (for web environment via Tauri backend)
 export class StreamlinedWebOCR {
-  private static worker: any = null;
   private static isInitialized = false;
   private static initializationPromise: Promise<void> | null = null;
 
@@ -99,7 +98,7 @@ export class StreamlinedWebOCR {
       return this.initializationPromise;
     }
 
-    if (this.isInitialized && this.worker) {
+    if (this.isInitialized) {
       return;
     }
 
@@ -108,41 +107,43 @@ export class StreamlinedWebOCR {
   }
 
   private static async performInitialization(): Promise<void> {
-    try {
-      const Tesseract = await import('tesseract.js');
+    // Web environment uses PaddleOCR backend via HTTP or Tauri
+    if (universalFileApi.isWebEnvironment() && !universalFileApi.isTauriEnvironment()) {
+      // Check if PaddleOCR backend is available
+      await this.checkBackendAvailability();
+    }
+    this.isInitialized = true;
+    console.log('Web OCR processor initialized (using PaddleOCR backend)');
+  }
 
-      // Create worker with correct v6 API
-      this.worker = await Tesseract.createWorker('eng', 1, {
-        logger: (m: { status: string; progress: number }) => {
-          if (process.env.NODE_ENV === 'development') {
-            console.log('OCR:', m.status, Math.round(m.progress * 100) + '%');
-          }
+  private static async checkBackendAvailability(): Promise<void> {
+    try {
+      const backendUrl = this.getPaddleOCRBackendUrl();
+      console.log(`Checking PaddleOCR backend availability at: ${backendUrl}`);
+
+      const response = await fetch(`${backendUrl}/health`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
         },
       });
 
-      // Initialize the worker
-      await this.worker.loadLanguage('eng');
-      await this.worker.initialize('eng');
+      if (!response.ok) {
+        throw new Error(`Backend health check failed: ${response.status}`);
+      }
 
-      // Set parameters for better accuracy
-      await this.worker.setParameters({
-        tessedit_pageseg_mode: '6', // Uniform block of text
-        tessedit_ocr_engine_mode: '3', // Default, based on what is available
-      });
-
-      this.isInitialized = true;
-      console.log('Tesseract.js worker initialized successfully');
+      const healthData = await response.json();
+      console.log('PaddleOCR backend is available:', healthData);
     } catch (error) {
-      this.initializationPromise = null;
-      this.isInitialized = false;
-      console.error('Failed to initialize Tesseract.js:', error);
-      throw new Error(`OCR initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.warn('PaddleOCR backend availability check failed:', error);
+      // Don't throw error here - we'll handle it during actual processing
+      // This allows the app to start even if backend is temporarily unavailable
     }
   }
 
   static async processFile(file: File): Promise<StreamlinedProcessingResult> {
     const startTime = Date.now();
-    console.log('Starting OCR processing for file:', file.name, 'Size:', file.size, 'Type:', file.type);
+    console.log('Starting PaddleOCR processing for file:', file.name, 'Size:', file.size, 'Type:', file.type);
 
     try {
       // Validate file size
@@ -163,56 +164,161 @@ export class StreamlinedWebOCR {
         };
       }
 
-      console.log('Initializing Tesseract.js worker...');
+      console.log('Initializing PaddleOCR backend...');
       await this.initialize();
 
-      // Get image data for OCR processing
-      console.log('Converting file to image data...');
-      const imageData = await this.getImageDataFromFile(file);
+      // For web environment, make direct HTTP request to PaddleOCR backend
+      if (universalFileApi.isWebEnvironment() && !universalFileApi.isTauriEnvironment()) {
+        console.log('Web environment detected, using direct HTTP request to PaddleOCR backend');
+        return await this.processFileViaHTTP(file, startTime);
+      }
 
-      // Process with Tesseract using optimized settings for v6
-      console.log('Starting OCR recognition...');
-      const result = await this.performOCR(imageData);
-      console.log('OCR recognition completed. Text length:', result.data.text?.length || 0);
+      // If we're in Tauri environment, delegate to the Tauri OCR processing
+      // This will be handled by the StreamlinedProcessor.processFile method
+      throw new Error('OCR processing should be handled by Tauri backend. This path should not be reached.');
 
-      // Extract and validate word details
-      const wordDetails = this.extractWordDetails(result);
-      console.log('Extracted word details:', wordDetails.length, 'words');
-
-      const finalResult = {
-        text: result.data.text || '',
-        confidence: Math.max(0, Math.min(1, (result.data.confidence || 0) / 100)),
-        engine_used: 'Tesseract.js v6',
-        processing_time: Date.now() - startTime,
-        word_details: wordDetails,
-      };
-
-      console.log('OCR processing completed successfully:', finalResult);
-      return finalResult;
     } catch (error) {
       console.error('OCR processing failed:', error);
-      throw new Error(`OCR processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(`OCR processing failed: ${error instanceof Error ? error.message : 'PaddleOCR backend not available'}`);
     }
   }
 
-  private static async getImageDataFromFile(file: File): Promise<string> {
-    if (file.type.startsWith('image/')) {
-      return this.fileToDataURL(file);
+  private static async processFileViaHTTP(file: File, startTime: number): Promise<StreamlinedProcessingResult> {
+    try {
+      // Default PaddleOCR backend URL (can be configured)
+      const backendUrl = this.getPaddleOCRBackendUrl();
+
+      // Create form data for file upload
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('enhance_contrast', 'true');
+      formData.append('denoise', 'true');
+      formData.append('threshold_method', 'adaptive_gaussian');
+      formData.append('apply_morphology', 'true');
+
+      console.log(`Making HTTP request to PaddleOCR backend: ${backendUrl}/ocr/image`);
+
+      // Make HTTP request to PaddleOCR backend
+      const response = await fetch(`${backendUrl}/ocr/image`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`PaddleOCR backend error (${response.status}): ${errorText}`);
+      }
+
+      const result = await response.json();
+
+      // Convert Python backend response to StreamlinedProcessingResult format
+      return {
+        text: result.text || '',
+        engine_used: result.engine_used || 'PaddleOCR',
+        processing_time: Date.now() - startTime,
+        confidence: result.confidence || 0,
+        word_details: this.convertWordDetails(result.word_details || []),
+      };
+
+    } catch (error) {
+      console.error('HTTP request to PaddleOCR backend failed:', error);
+
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new Error(`Cannot connect to PaddleOCR backend at ${this.getPaddleOCRBackendUrl()}.
+
+Please ensure the Python backend service is running:
+1. Navigate to the python_backend directory
+2. Run: python main.py --host 0.0.0.0 --port 8000
+3. Or use the desktop version for integrated OCR processing
+
+The backend should be accessible at http://localhost:8000/health`);
+      }
+
+      throw error;
+    }
+  }
+
+  private static getPaddleOCRBackendUrl(): string {
+    // Check for environment variable or localStorage setting
+    if (typeof window !== 'undefined') {
+      const storedUrl = localStorage.getItem('paddleocr_backend_url');
+      if (storedUrl) {
+        return storedUrl;
+      }
     }
 
-    if (file.type === 'application/pdf') {
-      throw new Error('PDF processing requires additional setup. Please convert to image format first.');
+    // Check for environment variable (Vite)
+    if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_PADDLEOCR_BACKEND_URL) {
+      return import.meta.env.VITE_PADDLEOCR_BACKEND_URL;
     }
 
-    if (file.type.includes('document') || file.name.endsWith('.docx')) {
-      throw new Error('Document processing not available. Please convert to image format.');
-    }
+    // Default URLs to try
+    const defaultUrls = [
+      'http://localhost:8000',
+      'http://127.0.0.1:8000',
+      'http://0.0.0.0:8000'
+    ];
 
-    if (file.type.startsWith('video/')) {
-      return this.extractVideoFrame(file);
-    }
+    return defaultUrls[0];
+  }
 
-    throw new Error(`Unsupported file type: ${file.type}. Supported types: images, videos, and text files.`);
+  // Allow users to configure the backend URL
+  static setBackendUrl(url: string): void {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('paddleocr_backend_url', url);
+      console.log(`PaddleOCR backend URL set to: ${url}`);
+    }
+  }
+
+  static getBackendUrl(): string {
+    return this.getPaddleOCRBackendUrl();
+  }
+
+  // Test connection to PaddleOCR backend
+  static async testBackendConnection(): Promise<{ success: boolean; message: string; data?: any }> {
+    try {
+      const backendUrl = this.getPaddleOCRBackendUrl();
+      console.log(`Testing connection to PaddleOCR backend: ${backendUrl}`);
+
+      const response = await fetch(`${backendUrl}/health`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        return {
+          success: false,
+          message: `Backend responded with status ${response.status}: ${response.statusText}`
+        };
+      }
+
+      const data = await response.json();
+      return {
+        success: true,
+        message: 'Successfully connected to PaddleOCR backend',
+        data
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: `Failed to connect to PaddleOCR backend: ${error instanceof Error ? error.message : 'Unknown error'}`
+      };
+    }
+  }
+
+  private static convertWordDetails(pythonWordDetails: any[]): WordDetail[] {
+    return pythonWordDetails.map(word => ({
+      text: word.text || '',
+      confidence: word.confidence || 0,
+      bbox: {
+        x0: word.bbox?.x || 0,
+        y0: word.bbox?.y || 0,
+        x1: (word.bbox?.x || 0) + (word.bbox?.width || 0),
+        y1: (word.bbox?.y || 0) + (word.bbox?.height || 0),
+      },
+    }));
   }
 
   private static generateWordDetailsFromText(text: string): WordDetail[] {
@@ -229,201 +335,14 @@ export class StreamlinedWebOCR {
     }));
   }
 
-  private static async performOCR(imageData: string): Promise<TesseractResult> {
-    if (!this.worker) {
-      throw new Error('Tesseract worker not initialized');
-    }
-
-    try {
-      // Use correct v6 API - recognize method returns a promise directly
-      const result = await Promise.race([
-        this.worker.recognize(imageData),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('OCR processing timed out')), OCR_CONFIG.WORKER_TIMEOUT)
-        )
-      ]);
-
-      return result as TesseractResult;
-    } catch (error) {
-      console.error('OCR processing error:', error);
-      throw new Error(`OCR processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  }
-
-  private static extractWordDetails(result: TesseractResult): WordDetail[] {
-    const wordDetails: WordDetail[] = [];
-
-    try {
-      // In Tesseract.js v6, word details are in the blocks structure
-      if (result.data && result.data.blocks) {
-        result.data.blocks.forEach((block: any) => {
-          if (!block.paragraphs) return;
-
-          block.paragraphs.forEach((paragraph: any) => {
-            if (!paragraph.lines) return;
-
-            paragraph.lines.forEach((line: any) => {
-              if (!line.words) return;
-
-              line.words.forEach((word: any) => {
-                if (word.text && word.text.trim()) {
-                  wordDetails.push({
-                    text: word.text.trim(),
-                    confidence: Math.max(0, Math.min(1, (word.confidence || 0) / 100)),
-                    bbox: word.bbox ? {
-                      x0: word.bbox.x0 || 0,
-                      y0: word.bbox.y0 || 0,
-                      x1: word.bbox.x1 || 0,
-                      y1: word.bbox.y1 || 0,
-                    } : undefined,
-                  });
-                }
-              });
-            });
-          });
-        });
-      }
-
-      // If no word details found, create basic ones from the text
-      if (wordDetails.length === 0 && result.data && result.data.text) {
-        const words = result.data.text.trim().split(/\s+/).filter(word => word.length > 0);
-        const confidence = Math.max(0, Math.min(1, (result.data.confidence || 0) / 100));
-
-        words.forEach((word, index) => {
-          wordDetails.push({
-            text: word,
-            confidence,
-            bbox: {
-              x0: index * 50,
-              y0: 10,
-              x1: (index + 1) * 50,
-              y1: 30,
-            },
-          });
-        });
-      }
-    } catch (error) {
-      console.warn('Failed to extract word details:', error);
-
-      // Fallback: create basic word details from text
-      if (result.data && result.data.text) {
-        const words = result.data.text.trim().split(/\s+/).filter(word => word.length > 0);
-        const confidence = Math.max(0, Math.min(1, (result.data.confidence || 0) / 100));
-
-        words.forEach((word, index) => {
-          wordDetails.push({
-            text: word,
-            confidence,
-            bbox: {
-              x0: index * 50,
-              y0: 10,
-              x1: (index + 1) * 50,
-              y1: 30,
-            },
-          });
-        });
-      }
-    }
-
-    return wordDetails;
-  }
-
-
-
-  private static async fileToDataURL(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-  }
-
-
-
-  private static async extractVideoFrame(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const video = document.createElement('video');
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-
-      if (!ctx) {
-        reject(new Error('Canvas not available'));
-        return;
-      }
-
-      let hasResolved = false;
-
-      const cleanup = () => {
-        if (video.src) {
-          URL.revokeObjectURL(video.src);
-        }
-      };
-
-      const resolveOnce = (dataURL: string) => {
-        if (!hasResolved) {
-          hasResolved = true;
-          cleanup();
-          resolve(dataURL);
-        }
-      };
-
-      const rejectOnce = (error: Error) => {
-        if (!hasResolved) {
-          hasResolved = true;
-          cleanup();
-          reject(error);
-        }
-      };
-
-      video.onloadedmetadata = () => {
-        try {
-          canvas.width = video.videoWidth;
-          canvas.height = video.videoHeight;
-          video.currentTime = Math.min(1, video.duration / 2); // Get frame at 1 second or middle
-        } catch (error) {
-          rejectOnce(new Error('Failed to set video frame time'));
-        }
-      };
-
-      video.onseeked = () => {
-        try {
-          ctx.drawImage(video, 0, 0);
-          const dataURL = canvas.toDataURL('image/png');
-          resolveOnce(dataURL);
-        } catch (error) {
-          rejectOnce(new Error('Failed to extract video frame'));
-        }
-      };
-
-      video.onerror = () => rejectOnce(new Error('Video loading failed'));
-      video.onabort = () => rejectOnce(new Error('Video loading aborted'));
-
-      // Set timeout for video processing
-      setTimeout(() => {
-        rejectOnce(new Error('Video frame extraction timed out'));
-      }, 10000);
-
-      try {
-        video.src = URL.createObjectURL(file);
-        video.load();
-      } catch (error) {
-        rejectOnce(new Error('Failed to create video object URL'));
-      }
-    });
-  }
-
   static async cleanup(): Promise<void> {
     try {
-      if (this.worker) {
-        await this.worker.terminate();
-        this.worker = null;
-        this.isInitialized = false;
-        this.initializationPromise = null;
-        console.log('Tesseract.js worker terminated successfully');
-      }
+      // No cleanup needed for PaddleOCR backend
+      this.isInitialized = false;
+      this.initializationPromise = null;
+      console.log('PaddleOCR web processor cleaned up');
     } catch (error) {
-      console.error('Error terminating Tesseract.js worker:', error);
+      console.error('Error during cleanup:', error);
     }
   }
 }
@@ -759,7 +678,13 @@ export class StreamlinedProcessor {
         apply_morphology: options.ocr_options.apply_morphology ?? true,
       } : defaultOptions;
 
-      const result = await ocrApi.processImage(fileInfo.path, ocrOptions);
+      // Determine if it's a video file
+      const isVideo = fileInfo.file_type === 'Video' ||
+                     fileInfo.path.toLowerCase().match(/\.(mp4|avi|mov|mkv|wmv|flv)$/);
+
+      const result = isVideo
+        ? await ocrApi.processVideo(fileInfo.path, ocrOptions)
+        : await ocrApi.processImage(fileInfo.path, ocrOptions);
 
       return {
         text: result.text,
@@ -885,4 +810,18 @@ export const streamlinedProcessor = {
       word_details: TypeAdapters.adaptWordDetailsToTauri(result.word_details || []),
     };
   },
+
+  // Utility methods for PaddleOCR backend management
+  testBackendConnection: StreamlinedWebOCR.testBackendConnection.bind(StreamlinedWebOCR),
+  setBackendUrl: StreamlinedWebOCR.setBackendUrl.bind(StreamlinedWebOCR),
+  getBackendUrl: StreamlinedWebOCR.getBackendUrl.bind(StreamlinedWebOCR),
 };
+
+// Make utilities available globally for debugging
+if (typeof window !== 'undefined') {
+  (window as any).paddleOCRUtils = {
+    testConnection: StreamlinedWebOCR.testBackendConnection.bind(StreamlinedWebOCR),
+    setBackendUrl: StreamlinedWebOCR.setBackendUrl.bind(StreamlinedWebOCR),
+    getBackendUrl: StreamlinedWebOCR.getBackendUrl.bind(StreamlinedWebOCR),
+  };
+}
