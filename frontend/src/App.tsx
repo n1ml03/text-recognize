@@ -15,7 +15,7 @@ function App() {
       console.log('Initializing app in', universalFileApi.isWebEnvironment() ? 'web' : 'desktop', 'environment');
       console.log('Supported formats:', formats);
       
-      setSupportedFormats(formats.image, formats.video);
+      setSupportedFormats([...formats.image], [...formats.video]);
       
       // Show environment-specific initialization message
       if (universalFileApi.isWebEnvironment()) {

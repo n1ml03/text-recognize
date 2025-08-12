@@ -234,7 +234,7 @@ export function OCRPanel() {
                       icon: '🔧',
                       checked: preprocessingOptions.apply_morphology
                     }
-                  ].map((option, index) => (
+                  ].map((option) => (
                     <motion.label
                       key={option.key}
                       variants={staggerItem}

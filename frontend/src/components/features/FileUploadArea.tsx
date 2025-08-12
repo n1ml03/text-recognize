@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Upload, File as FileIcon, Image, Video, FileText, X, Globe, Monitor, CheckCircle2, Sparkles } from 'lucide-react';
+import { Upload, File as FileIcon, Image, Video, FileText, X, CheckCircle2, Sparkles } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { UploadIcon } from '@/components/ui/animated-icons';
@@ -16,7 +16,7 @@ export function FileUploadArea() {
   } = useFileState();
   const { setError } = useAppStore();
   const [isDragActive, setIsDragActive] = useState(false);
-  const [isWebFile, setIsWebFile] = useState(false);
+
   const [uploadSuccess, setUploadSuccess] = useState(false);
 
   // Universal file handling for both desktop and web
@@ -64,12 +64,10 @@ export function FileUploadArea() {
 
       // Store additional info about web files
       if (fileInput instanceof File) {
-        setIsWebFile(true);
         // Store the File object in the fileInfo for later processing
         (fileInfo as any).webFile = fileInput;
         console.log('Web file stored for processing:', fileInput.name, 'File object:', fileInput);
       } else {
-        setIsWebFile(false);
         console.log('Desktop file path stored:', fileInput);
       }
       
@@ -150,7 +148,6 @@ export function FileUploadArea() {
 
   const clearFile = () => {
     setCurrentFile(null);
-    setIsWebFile(false);
   };
 
   const getFileIcon = (fileType: string) => {
@@ -167,13 +164,6 @@ export function FileUploadArea() {
     return universalFileApi.formatFileSize(bytes);
   };
 
-  const getEnvironmentIcon = () => {
-    if (universalFileApi.isWebEnvironment()) {
-      return <Globe className="h-4 w-4 text-blue-500" />;
-    } else {
-      return <Monitor className="h-4 w-4 text-green-500" />;
-    }
-  };
 
   return (
     <Card className="h-fit overflow-hidden border-0 shadow-lg bg-gradient-to-br from-background via-background to-muted/20">

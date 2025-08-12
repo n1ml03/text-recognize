@@ -1115,7 +1115,7 @@ export function ProcessingPanel() {
         {/* Enhanced Tab Navigation */}
         <div className="relative p-1.5 bg-gradient-to-r from-muted/80 via-muted/60 to-muted/80 rounded-xl border border-border/50 shadow-inner">
           <div className="flex gap-1">
-            {tabs.map((tab, index) => {
+            {tabs.map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
 
