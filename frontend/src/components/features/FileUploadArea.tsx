@@ -358,7 +358,7 @@ export function FileUploadArea() {
                     initial={{ scale: 0, rotate: -180 }}
                     animate={{ scale: 1, rotate: 0 }}
                     transition={{ delay: 0.3, type: "spring", stiffness: 200 }}
-                    className="p-1.5 rounded-full bg-green-100 dark:bg-green-900/30"
+                    className="p-1.5 rounded-full bg-green-100 dark:bg-white-900/30"
                   >
                     <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
                   </motion.div>
@@ -402,25 +402,6 @@ export function FileUploadArea() {
                         </span>
                       </motion.div>
                     </div>
-
-                    {/* File metadata */}
-                    <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.35 }}
-                      className="flex items-center gap-2 text-xs text-muted-foreground"
-                    >
-                      <div className="flex items-center gap-1">
-                        <div className="w-2 h-2 rounded-full bg-green-500" />
-                        <span>Ready for processing</span>
-                      </div>
-                      {currentFile.last_modified && currentFile.last_modified !== 'Unknown' && (
-                        <>
-                          <span>•</span>
-                          <span>Modified {new Date(currentFile.last_modified).toLocaleDateString()}</span>
-                        </>
-                      )}
-                    </motion.div>
                   </div>
                 </div>
 
@@ -457,17 +438,6 @@ export function FileUploadArea() {
                 >
                   <Upload className="h-4 w-4 mr-2" />
                   Choose Different File
-                </Button>
-                <Button
-                  variant="default"
-                  className="px-6 h-11 font-medium shadow-md hover:shadow-lg transition-all duration-200"
-                  onClick={() => {
-                    // This could trigger the next step in the workflow
-                    console.log('Process file:', currentFile.name);
-                  }}
-                >
-                  <Sparkles className="h-4 w-4 mr-2" />
-                  Process
                 </Button>
               </motion.div>
             </motion.div>

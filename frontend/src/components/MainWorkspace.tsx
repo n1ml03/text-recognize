@@ -59,7 +59,7 @@ function MainView() {
     <div className="h-full flex flex-col lg:flex-row">
       {/* Mobile-first: Controls panel stacks on top */}
       <div className="
-        w-full lg:w-80 xl:w-96
+        w-full lg:w-85 xl:w-100
         border-b lg:border-b-0 lg:border-r border-border
         bg-muted/30 flex flex-col
         max-h-[35vh] lg:max-h-none
@@ -74,7 +74,7 @@ function MainView() {
         </div>
       </div>
 
-      {/* Main Editor - Responsive layout */}
+      {/* Main Editor */}
       <div className="flex-1 min-w-0 h-full overflow-hidden">
         <SmartTextEditor />
       </div>

@@ -758,156 +758,283 @@ export function BatchProcessingPanel() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Upload Area */}
+        {/* Enhanced Upload Area with Micro-interactions */}
         <div className="space-y-4">
-          <div
-            {...getRootProps()}
-            className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
-              isDragActive ? 'border-primary bg-primary/10' : 'border-muted-foreground/25 hover:border-primary/50'
-            }`}
+          <motion.div
+            whileHover={{ y: -2 }}
+            whileTap={{ scale: 0.98 }}
           >
-            <input {...getInputProps()} />
-            <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground mb-3">
-              {isDragActive 
-                ? 'Drop files here...' 
-                : isWebEnvironment 
-                  ? 'Drag & drop files here, or click to select'
-                  : 'Click to browse for files'
-              }
-            </p>
-            <Button 
-              onClick={(e) => {
-                e.stopPropagation();
-                addFilesFromPicker();
-              }}
-              variant="outline"
-              size="sm"
+            <div
+              {...getRootProps()}
+              className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-all duration-300 ${
+                isDragActive 
+                  ? 'border-primary bg-primary/10 scale-[1.02] shadow-lg' 
+                  : 'border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/30 hover:scale-[1.01]'
+              }`}
             >
-              Browse Files
-            </Button>
-          </div>
+              <input {...getInputProps()} />
+              <motion.div
+                animate={isDragActive ? { scale: [1, 1.1, 1], rotate: [0, 5, -5, 0] } : {}}
+                transition={{ duration: 0.3 }}
+              >
+                <Upload className={`h-8 w-8 mx-auto mb-2 transition-colors duration-200 ${
+                  isDragActive ? 'text-primary' : 'text-muted-foreground'
+                }`} />
+              </motion.div>
+              <motion.p 
+                className="text-sm text-muted-foreground mb-3"
+                animate={isDragActive ? { scale: 1.05 } : { scale: 1 }}
+              >
+                {isDragActive 
+                  ? '🎯 Drop files here...' 
+                  : isWebEnvironment 
+                    ? 'Drag & drop files here, or click to select'
+                    : 'Click to browse for files'
+                }
+              </motion.p>
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <Button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    addFilesFromPicker();
+                  }}
+                  variant="outline"
+                  size="sm"
+                  className="hover:bg-primary/10 hover:border-primary transition-all duration-200"
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  Browse Files
+                </Button>
+              </motion.div>
+            </div>
+          </motion.div>
         </div>
 
-        {/* Processing Settings */}
+        {/* Compact Processing Settings */}
         {files.length > 0 && (
-          <div className="border rounded-lg p-4 space-y-4">
-            <div className="flex items-center gap-2">
-              <Settings className="h-4 w-4" />
-              <span className="font-medium">Processing Settings</span>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Processing Mode</label>
+          <motion.div 
+            className="border rounded-lg p-3 space-y-3"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            transition={{ duration: 0.3 }}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Settings className="h-4 w-4" />
+                <span className="font-medium text-sm">Settings</span>
+              </div>
+              <div className="flex items-center gap-3 text-xs">
+                <span className="text-muted-foreground">Mode:</span>
                 <select
                   value={processingMode}
                   onChange={(e) => setProcessingMode(e.target.value as 'sequential' | 'parallel')}
-                  className="w-full px-3 py-1.5 text-sm border rounded-md"
+                  className="px-2 py-1 text-xs border rounded"
                   disabled={isProcessing}
                 >
                   <option value="sequential">Sequential</option>
                   <option value="parallel">Parallel</option>
                 </select>
-              </div>
-              
-              {processingMode === 'parallel' && (
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Parallel Jobs</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="10"
-                    value={maxParallelJobs}
-                    onChange={(e) => setMaxParallelJobs(parseInt(e.target.value) || 3)}
-                    className="w-full px-3 py-1.5 text-sm border rounded-md"
-                    disabled={isProcessing}
-                  />
-                </div>
-              )}
-              
-              <div className="space-y-2">
-                <label className="text-sm font-medium flex items-center gap-2">
+                
+                {processingMode === 'parallel' && (
+                  <>
+                    <span className="text-muted-foreground">Jobs:</span>
+                    <input
+                      type="number"
+                      min="1"
+                      max="10"
+                      value={maxParallelJobs}
+                      onChange={(e) => setMaxParallelJobs(parseInt(e.target.value) || 3)}
+                      className="w-12 px-1 py-1 text-xs border rounded text-center"
+                      disabled={isProcessing}
+                    />
+                  </>
+                )}
+                
+                <label className="flex items-center gap-1 text-xs">
                   <input
                     type="checkbox"
                     checked={retryFailedFiles}
                     onChange={(e) => setRetryFailedFiles(e.target.checked)}
                     disabled={isProcessing}
+                    className="scale-75"
                   />
-                  Auto-retry failed files
+                  Auto-retry
                 </label>
+                
                 {retryFailedFiles && (
-                  <input
-                    type="number"
-                    min="1"
-                    max="10"
-                    value={maxRetries}
-                    onChange={(e) => setMaxRetries(parseInt(e.target.value) || 3)}
-                    className="w-full px-3 py-1.5 text-sm border rounded-md"
-                    placeholder="Max retries"
-                    disabled={isProcessing}
-                  />
+                  <>
+                    <span className="text-muted-foreground">Max:</span>
+                    <input
+                      type="number"
+                      min="1"
+                      max="10"
+                      value={maxRetries}
+                      onChange={(e) => setMaxRetries(parseInt(e.target.value) || 3)}
+                      className="w-10 px-1 py-1 text-xs border rounded text-center"
+                      disabled={isProcessing}
+                    />
+                  </>
                 )}
               </div>
             </div>
-          </div>
+          </motion.div>
         )}
 
-        {/* Controls */}
+        {/* Enhanced Controls with Micro-interactions */}
         {files.length > 0 && (
-          <div className="flex items-center gap-2 flex-wrap">
+          <motion.div 
+            className="flex items-center gap-2 flex-wrap"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+          >
             {!isProcessing ? (
-              <Button onClick={startProcessing} size="sm">
-                <Play className="h-4 w-4 mr-2" />
-                Start Processing
-              </Button>
-            ) : (
-              <>
-                {!isPaused ? (
-                  <Button onClick={pauseProcessing} size="sm" variant="outline">
-                    <Pause className="h-4 w-4 mr-2" />
-                    Pause
-                  </Button>
-                ) : (
-                  <Button onClick={resumeProcessing} size="sm">
+              <motion.div
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                <Button 
+                  onClick={startProcessing} 
+                  size="sm"
+                  className="bg-green-600 hover:bg-green-700 text-white shadow-lg hover:shadow-xl transition-all duration-200"
+                >
+                  <motion.div
+                    whileHover={{ rotate: 360 }}
+                    transition={{ duration: 0.3 }}
+                  >
                     <Play className="h-4 w-4 mr-2" />
-                    Resume
-                  </Button>
-                )}
-                <Button onClick={stopProcessing} size="sm" variant="destructive">
-                  <Square className="h-4 w-4 mr-2" />
-                  Stop
+                  </motion.div>
+                  Start Processing
                 </Button>
-              </>
+              </motion.div>
+            ) : (
+              <div className="flex items-center gap-2">
+                {!isPaused ? (
+                  <motion.div
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    <Button onClick={pauseProcessing} size="sm" variant="outline" className="hover:bg-yellow-50 hover:border-yellow-300">
+                      <motion.div
+                        animate={{ scale: [1, 1.1, 1] }}
+                        transition={{ duration: 1, repeat: Infinity }}
+                      >
+                        <Pause className="h-4 w-4 mr-2" />
+                      </motion.div>
+                      Pause
+                    </Button>
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    <Button onClick={resumeProcessing} size="sm" className="bg-blue-600 hover:bg-blue-700">
+                      <motion.div
+                        animate={{ x: [0, 2, 0] }}
+                        transition={{ duration: 0.8, repeat: Infinity }}
+                      >
+                        <Play className="h-4 w-4 mr-2" />
+                      </motion.div>
+                      Resume
+                    </Button>
+                  </motion.div>
+                )}
+                <motion.div
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <Button onClick={stopProcessing} size="sm" variant="destructive" className="hover:bg-red-600">
+                    <Square className="h-4 w-4 mr-2" />
+                    Stop
+                  </Button>
+                </motion.div>
+              </div>
             )}
             
-            <Button onClick={exportResults} size="sm" variant="outline" disabled={completedCount === 0}>
-              <Download className="h-4 w-4 mr-2" />
-              Export Results
-            </Button>
+            <motion.div
+              whileHover={{ scale: 1.02, y: -1 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              <Button 
+                onClick={exportResults} 
+                size="sm" 
+                variant="outline" 
+                disabled={completedCount === 0}
+                className="hover:bg-blue-50 hover:border-blue-300 disabled:opacity-50 transition-all duration-200"
+              >
+                <motion.div
+                  whileHover={{ y: -1 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                </motion.div>
+                Export Results ({completedCount})
+              </Button>
+            </motion.div>
             
             <div className="flex items-center gap-1">
-              <Button onClick={clearCompleted} size="sm" variant="outline" disabled={completedCount === 0}>
-                <Trash2 className="h-4 w-4 mr-2" />
-                Clear Completed
-              </Button>
+              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                <Button 
+                  onClick={clearCompleted} 
+                  size="sm" 
+                  variant="outline" 
+                  disabled={completedCount === 0}
+                  className="hover:bg-green-50 hover:border-green-300 disabled:opacity-50"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Clear Completed
+                </Button>
+              </motion.div>
               
-              <Button onClick={clearFailed} size="sm" variant="outline" disabled={errorCount === 0}>
-                <AlertTriangle className="h-4 w-4 mr-2" />
-                Clear Failed
-              </Button>
+              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                <Button 
+                  onClick={clearFailed} 
+                  size="sm" 
+                  variant="outline" 
+                  disabled={errorCount === 0}
+                  className="hover:bg-red-50 hover:border-red-300 disabled:opacity-50"
+                >
+                  <AlertTriangle className="h-4 w-4 mr-2" />
+                  Clear Failed ({errorCount})
+                </Button>
+              </motion.div>
               
-              <Button onClick={retryAllFailed} size="sm" variant="outline" disabled={errorCount === 0 || isProcessing}>
-                <RotateCcw className="h-4 w-4 mr-2" />
-                Retry Failed
-              </Button>
+              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                <Button 
+                  onClick={retryAllFailed} 
+                  size="sm" 
+                  variant="outline" 
+                  disabled={errorCount === 0 || isProcessing}
+                  className="hover:bg-orange-50 hover:border-orange-300 disabled:opacity-50"
+                >
+                  <motion.div
+                    whileHover={{ rotate: 180 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <RotateCcw className="h-4 w-4 mr-2" />
+                  </motion.div>
+                  Retry Failed
+                </Button>
+              </motion.div>
               
-              <Button onClick={clearAll} size="sm" variant="outline" disabled={isProcessing}>
-                <Trash2 className="h-4 w-4 mr-2" />
-                Clear All
-              </Button>
+              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                <Button 
+                  onClick={clearAll} 
+                  size="sm" 
+                  variant="outline" 
+                  disabled={isProcessing}
+                  className="hover:bg-red-50 hover:border-red-300 disabled:opacity-50"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Clear All
+                </Button>
+              </motion.div>
             </div>
-          </div>
+          </motion.div>
         )}
 
         {/* Enhanced Progress Overview */}
@@ -996,16 +1123,38 @@ export function BatchProcessingPanel() {
           </div>
         )}
 
-        {/* File List */}
-        <div className="space-y-2 max-h-64 overflow-y-auto">
+        {/* Enhanced File List with Advanced Micro-interactions */}
+        <div className="space-y-2 max-h-96 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 dark:scrollbar-thumb-gray-600 dark:scrollbar-track-gray-800 pr-2">
           <AnimatePresence>
-            {files.map((file) => (
+            {files.map((file, index) => (
               <motion.div
                 key={file.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                className="flex items-center gap-3 p-3 border rounded-lg"
+                initial={{ opacity: 0, x: -50, scale: 0.95 }}
+                animate={{ 
+                  opacity: 1, 
+                  x: 0, 
+                  scale: 1,
+                  transition: { 
+                    delay: index * 0.05,
+                    type: "spring",
+                    stiffness: 200
+                  }
+                }}
+                exit={{ 
+                  opacity: 0, 
+                  x: 50, 
+                  scale: 0.95,
+                  transition: { duration: 0.2 }
+                }}
+                className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-all duration-200 ${
+                  file.status === 'processing' 
+                    ? 'border-blue-300 bg-blue-50/50 shadow-md' 
+                    : file.status === 'completed'
+                    ? 'border-green-300 bg-green-50/50'
+                    : file.status === 'error'
+                    ? 'border-red-300 bg-red-50/50'
+                    : 'hover:border-primary/50 hover:bg-muted/50'
+                }`}
               >
                 {getStatusIcon(file.status)}
                 
@@ -1074,36 +1223,54 @@ export function BatchProcessingPanel() {
                 
                 <div className="flex items-center gap-1">
                   {file.status === 'error' && (
-                    <Button
-                      onClick={() => retryFile(file.id)}
-                      size="sm"
-                      variant="ghost"
-                      title="Retry processing"
+                    <motion.div
+                      whileHover={{ scale: 1.1, rotate: 180 }}
+                      whileTap={{ scale: 0.9 }}
                     >
-                      <RotateCcw className="h-4 w-4" />
-                    </Button>
+                      <Button
+                        onClick={() => retryFile(file.id)}
+                        size="sm"
+                        variant="ghost"
+                        title="Retry processing"
+                        className="hover:bg-orange-100 hover:text-orange-600 transition-colors duration-200"
+                      >
+                        <RotateCcw className="h-4 w-4" />
+                      </Button>
+                    </motion.div>
                   )}
                   
                   {file.status === 'completed' && (
-                    <Button
-                      onClick={() => duplicateFile(file.id)}
-                      size="sm"
-                      variant="ghost"
-                      title="Duplicate file"
+                    <motion.div
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
                     >
-                      <Copy className="h-4 w-4" />
-                    </Button>
+                      <Button
+                        onClick={() => duplicateFile(file.id)}
+                        size="sm"
+                        variant="ghost"
+                        title="Duplicate file"
+                        className="hover:bg-blue-100 hover:text-blue-600 transition-colors duration-200"
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                    </motion.div>
                   )}
                   
-                  <Button
-                    onClick={() => removeFile(file.id)}
-                    size="sm"
-                    variant="ghost"
-                    disabled={isProcessing && file.status === 'processing'}
-                    title="Remove file"
+                  <motion.div
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
                   >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                    <Button
+                      onClick={() => removeFile(file.id)}
+                      size="sm"
+                      variant="ghost"
+                      disabled={isProcessing && file.status === 'processing'}
+                      title="Remove file"
+                      className="hover:bg-red-100 hover:text-red-600 disabled:opacity-50 transition-colors duration-200"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </motion.div>
                 </div>
               </motion.div>
             ))}
@@ -1111,11 +1278,41 @@ export function BatchProcessingPanel() {
         </div>
 
         {files.length === 0 && (
-          <div className="text-center py-8 text-muted-foreground">
-            <FileText className="h-12 w-12 mx-auto mb-2 opacity-50" />
-            <p>No files added yet</p>
-            <p className="text-sm">Add files to start batch processing</p>
-          </div>
+          <motion.div 
+            className="text-center py-8 text-muted-foreground"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+          >
+            <motion.div
+              animate={{ 
+                y: [0, -8, 0],
+                rotate: [0, 5, -5, 0]
+              }}
+              transition={{ 
+                duration: 2,
+                repeat: Infinity,
+                ease: "easeInOut"
+              }}
+            >
+              <FileText className="h-12 w-12 mx-auto mb-2 opacity-50" />
+            </motion.div>
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.5 }}
+            >
+              No files added yet
+            </motion.p>
+            <motion.p 
+              className="text-sm"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.7 }}
+            >
+              Add files to start batch processing ✨
+            </motion.p>
+          </motion.div>
         )}
       </CardContent>
     </Card>

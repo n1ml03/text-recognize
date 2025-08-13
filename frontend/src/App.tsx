@@ -17,13 +17,6 @@ function App() {
       
       setSupportedFormats([...formats.image], [...formats.video]);
       
-      // Show environment-specific initialization message
-      if (universalFileApi.isWebEnvironment()) {
-        console.log('Web version initialized - drag & drop enabled, client-side processing');
-      } else {
-        console.log('Desktop version initialized - native file system access, enhanced processing');
-      }
-      
     } catch (error) {
       console.error('Failed to initialize app:', error);
       setError('Failed to initialize application');

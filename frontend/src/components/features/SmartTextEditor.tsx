@@ -20,7 +20,6 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useTextState, useOCRState, useGrammarState, useAppStore } from '@/store/app-store';
 import { streamlinedProcessor } from '@/lib/streamlined-processors';
-import { ExportFloatingPanel } from './ExportFloatingPanel';
 
 interface GrammarError {
   message: string;
@@ -59,7 +58,7 @@ export function SmartTextEditor() {
   const [showSuggestion, setShowSuggestion] = useState<SuggestionTooltip | null>(null);
   const [autoCheck, setAutoCheck] = useState(true);
   const [smartMode, setSmartMode] = useState(true);
-  const [showExportPanel, setShowExportPanel] = useState(false);
+  const [, setShowExportPanel] = useState(false);
   
   const textareaRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
@@ -1090,12 +1089,6 @@ export function SmartTextEditor() {
           </div>
         </div>
       </div>
-
-      {/* Export Panel */}
-      <ExportFloatingPanel 
-        isOpen={showExportPanel} 
-        onClose={() => setShowExportPanel(false)} 
-      />
     </div>
   );
 }

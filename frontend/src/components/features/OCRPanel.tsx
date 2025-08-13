@@ -7,8 +7,7 @@ import {
   Loader2,
   Image,
   CheckCircle,
-  Sparkles,
-  Zap
+  Sparkles
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -89,7 +88,7 @@ export function OCRPanel() {
             <div>
               <h2 className="text-lg font-semibold">Text Extraction</h2>
               <p className="text-xs text-muted-foreground font-normal">
-                AI-powered OCR with PaddleOCR
+                Process OCR with PaddleOCR
               </p>
             </div>
           </div>
@@ -273,60 +272,27 @@ export function OCRPanel() {
           <Button
             onClick={handleProcessOCR}
             disabled={!currentFile || isProcessingOCR}
-            className="w-full relative overflow-hidden group h-14 text-base font-semibold shadow-lg hover:shadow-xl transition-all duration-300"
-            size="xl"
+            variant="outline"
+            className="w-full h-11 font-medium hover:bg-muted/50 transition-all duration-200"
           >
-            {/* Animated background gradient */}
-            <motion.div
-              className="absolute inset-0 bg-gradient-to-r from-primary via-primary/90 to-primary opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-              animate={{
-                background: isProcessingOCR
-                  ? 'linear-gradient(90deg, hsl(var(--primary)) 0%, hsl(var(--primary))/0.8 50%, hsl(var(--primary)) 100%)'
-                  : 'linear-gradient(90deg, hsl(var(--primary)) 0%, hsl(var(--primary))/0.9 50%, hsl(var(--primary)) 100%)'
-              }}
-            />
-
-            <div className="relative z-10 flex items-center justify-center">
-              {isProcessingOCR ? (
-                <>
-                  <motion.div
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                  >
-                    <Loader2 className="h-5 w-5 mr-3" />
-                  </motion.div>
-                  <span>Extracting text...</span>
-                  <motion.div
-                    animate={{ opacity: [1, 0.5, 1] }}
-                    transition={{ duration: 1.5, repeat: Infinity }}
-                    className="ml-2"
-                  >
-                    <Sparkles className="h-4 w-4" />
-                  </motion.div>
-                </>
-              ) : (
-                <>
-                  <motion.div
-                    whileHover={{ scale: 1.1, rotate: 5 }}
-                    transition={{ type: "spring", stiffness: 400 }}
-                  >
-                    <Eye className="h-5 w-5 mr-3" />
-                  </motion.div>
-                  <span>
-                    {!currentFile ? 'Select File First' : 'Extract Text'}
-                  </span>
-                  {currentFile && (
-                    <motion.div
-                      animate={{ x: [0, 5, 0] }}
-                      transition={{ duration: 2, repeat: Infinity }}
-                      className="ml-2"
-                    >
-                      <Zap className="h-4 w-4" />
-                    </motion.div>
-                  )}
-                </>
-              )}
-            </div>
+            {isProcessingOCR ? (
+              <>
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                >
+                  <Loader2 className="h-4 w-4 mr-2" />
+                </motion.div>
+                <span>Extracting text...</span>
+              </>
+            ) : (
+              <>
+                <Eye className="h-4 w-4 mr-2" />
+                <span>
+                  {!currentFile ? 'Select File First' : 'Extract Text'}
+                </span>
+              </>
+            )}
           </Button>
         </motion.div>
 
@@ -351,35 +317,39 @@ export function OCRPanel() {
                   <h3 className="text-lg font-semibold text-primary">Processing Image</h3>
                 </div>
 
-                <Progress value={undefined} className="w-full h-2" />
+                <Progress value={undefined} className="w-full h-1" />
 
                 <motion.div
                   animate={{ opacity: [1, 0.6, 1] }}
                   transition={{ duration: 2, repeat: Infinity }}
                   className="text-center space-y-2"
                 >
-                  <p className="text-sm font-medium text-foreground">
-                    AI is analyzing your image...
-                  </p>
                   <p className="text-xs text-muted-foreground">
                     Using advanced PaddleOCR technology for optimal accuracy
                   </p>
                 </motion.div>
 
                 {/* Processing steps indicator */}
-                <div className="flex justify-center gap-2 mt-4">
-                  {['Preprocessing', 'Detection', 'Recognition'].map((step, index) => (
+                <div className="flex flex-wrap justify-center gap-1.5 sm:gap-2 mt-4 px-2">
+                  {[
+                    { name: 'Preprocessing', short: 'Preprocessing' },
+                    { name: 'Detection', short: 'Detection' },
+                    { name: 'Recognition', short: 'Recognition' }
+                  ].map((step, index) => (
                     <motion.div
-                      key={step}
-                      className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted/50 border"
+                      key={step.name}
+                      className="flex items-center gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full bg-muted/50 border flex-shrink-0 min-w-0"
                       animate={{
                         backgroundColor: index === 1 ? 'hsl(var(--primary)/0.1)' : 'hsl(var(--muted)/0.5)',
                         borderColor: index === 1 ? 'hsl(var(--primary)/0.3)' : 'hsl(var(--border))'
                       }}
                       transition={{ duration: 2, repeat: Infinity }}
                     >
-                      <div className={`w-2 h-2 rounded-full ${index === 1 ? 'bg-primary' : 'bg-muted-foreground/50'}`} />
-                      <span className="text-xs font-medium">{step}</span>
+                      <div className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full flex-shrink-0 ${index === 1 ? 'bg-primary' : 'bg-muted-foreground/50'}`} />
+                      <span className="text-xs font-medium whitespace-nowrap">
+                        <span className="hidden xs:inline">{step.name}</span>
+                        <span className="xs:hidden">{step.short}</span>
+                      </span>
                     </motion.div>
                   ))}
                 </div>
@@ -395,26 +365,22 @@ export function OCRPanel() {
               initial={{ opacity: 0, y: 30, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               transition={{ duration: 0.5, ease: "easeOut" }}
-              className="relative overflow-hidden rounded-xl bg-white dark:bg-card border border-border shadow-lg"
+              className="relative overflow-hidden rounded-xl bg-card border border-border shadow-lg"
             >
               {/* Success header */}
               <div className="p-6 pb-4">
                 <motion.div
                   initial={{ scale: 0, rotate: -180 }}
                   animate={{ scale: 1, rotate: 0 }}
-                  transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
                   className="flex items-center gap-3 mb-4"
                 >
-                  <div className="p-2 rounded-full bg-green-100 dark:bg-green-900/50">
+                  <div className="p-2 rounded-full bg-green-50 dark:bg-white-900/50">
                     <CheckCircle className="h-6 w-6 text-green-600 dark:text-green-400" />
                   </div>
                   <div>
                     <h3 className="font-semibold text-lg text-foreground">
                       Text Extracted Successfully!
                     </h3>
-                    <p className="text-sm text-muted-foreground">
-                      Ready for grammar checking and editing
-                    </p>
                   </div>
                 </motion.div>
 
@@ -467,7 +433,7 @@ export function OCRPanel() {
                         <p className={`font-bold text-lg ${stat.color}`} title={stat.value}>
                           {stat.value}
                         </p>
-                        {stat.progress && (
+                        {/* {stat.progress && (
                           <div className="w-full bg-muted rounded-full h-2">
                             <motion.div
                               className="bg-green-600 dark:bg-green-400 h-2 rounded-full"
@@ -476,27 +442,12 @@ export function OCRPanel() {
                               transition={{ delay: 0.5 + index * 0.1, duration: 0.8, ease: "easeOut" }}
                             />
                           </div>
-                        )}
+                        )} */}
                       </div>
                     </motion.div>
                   ))}
                 </motion.div>
               </div>
-
-              {/* Next steps */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.6 }}
-                className="px-6 pb-6 pt-2 border-t border-border"
-              >
-                <div className="flex items-center gap-2 text-dark-700 dark:text-dark-300">
-                  <Sparkles className="h-4 w-4" />
-                  <span className="text-sm font-medium">
-                    Text loaded into editor • Ready for grammar checking
-                  </span>
-                </div>
-              </motion.div>
             </motion.div>
           )}
         </AnimatePresence>

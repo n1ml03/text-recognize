@@ -163,67 +163,78 @@ export function MainLayout() {
         )}
       </AnimatePresence>
 
-      {/* Enhanced Sidebar - Mobile-first responsive */}
+      {/* Enhanced Sidebar */}
       <motion.aside
         initial={false}
         animate={{
           width: isMobile
-            ? (mobileMenuOpen ? 280 : 0)
-            : (sidebarCollapsed ? 72 : 220),
+            ? (mobileMenuOpen ? 250 : 0)
+            : (sidebarCollapsed ? 72 : 230),
           x: isMobile && !mobileMenuOpen ? -280 : 0
         }}
         className={`
-          bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60
-          border-r border-border flex flex-col
-          ${isMobile ? 'fixed left-0 top-0 h-full z-50 shadow-mobile-lg' : 'relative'}
+          bg-gradient-to-b from-background/98 via-background/95 to-background/98 
+          backdrop-blur-xl supports-[backdrop-filter]:bg-background/90
+          border-r border-border/40 flex flex-col
+          shadow-[0_0_40px_rgba(0,0,0,0.05)] dark:shadow-[0_0_40px_rgba(0,0,0,0.15)]
+          ${isMobile ? 'fixed left-0 top-0 h-full z-50 shadow-2xl' : 'relative'}
           ${isMobile && !mobileMenuOpen ? 'pointer-events-none' : ''}
         `}
       >
-        {/* Brand Header - Mobile-first responsive */}
-        <div className="border-b border-border/50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 safe-area-inset-top">
-          <div className={`flex items-center py-2 bg-card/50 min-h-[4rem] ${
-            sidebarCollapsed && !isMobile ? 'justify-center px-2' : 'justify-between px-4 sm:px-6'
+        {/* Brand Header */}
+        <div className="border-b border-border/30 bg-gradient-to-r from-background/98 to-background/95 backdrop-blur-xl safe-area-inset-top">
+          <div className={`flex items-center py-2.5 min-h-[4rem] transition-all duration-300 ${
+            sidebarCollapsed && !isMobile ? 'justify-center px-3' : 'justify-between px-4'
           }`}>
-            {/* Brand/Logo section - only show when expanded */}
-            {!sidebarCollapsed && !isMobile && (
-              <div className="flex items-center gap-3 min-w-0 flex-1">
+            {/* Brand/Logo section - enhanced typography */}
+            {(!sidebarCollapsed || isMobile) && (
+              <motion.div 
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="flex items-center gap-3 min-w-0 flex-1"
+              >
                 <div className="min-w-0">
-                  <h2 className="text-base font-semibold truncate">Text Recognize</h2>
+                  <h2 className="text-base font-bold bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text">
+                    Text Recognize
+                  </h2>
                 </div>
-              </div>
+              </motion.div>
             )}
 
-            {/* Close button for mobile, collapse button for desktop */}
-            <Button
-              variant="ghost"
-              size={isMobile ? "default" : "icon"}
-              onClick={() => {
-                if (isMobile) {
-                  setMobileMenuOpen(false);
-                } else {
-                  setSidebarCollapsed(!sidebarCollapsed);
-                }
-              }}
-              className={`hover:bg-muted transition-colors touch-target ${
-                isMobile
-                  ? 'ml-auto'
-                  : 'h-8 w-8'
-              }`}
-            >
-              {isMobile ? (
-                <X className="h-4 w-4" />
-              ) : sidebarCollapsed ? (
-                <ChevronRight className="h-4 w-4" />
-              ) : (
-                <ChevronLeft className="h-4 w-4" />
-              )}
-            </Button>
+            {/* Centered Toggle Button */}
+            <div className={`${sidebarCollapsed && !isMobile ? 'w-full flex justify-center' : ''}`}>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => {
+                  if (isMobile) {
+                    setMobileMenuOpen(false);
+                  } else {
+                    setSidebarCollapsed(!sidebarCollapsed);
+                  }
+                }}
+                className={`
+                  hover:bg-muted/50 transition-all duration-300 group
+                  border border-transparent hover:border-border/30
+                  ${isMobile ? 'h-9 w-9 ml-auto' : 'h-9 w-9 rounded-lg'}
+                  ${sidebarCollapsed && !isMobile ? 'bg-card/50 shadow-sm' : ''}
+                `}
+              >
+                {isMobile ? (
+                  <X className="h-5 w-5 transition-transform group-hover:scale-110" />
+                ) : sidebarCollapsed ? (
+                  <ChevronRight className="h-5 w-5 transition-transform group-hover:scale-110 group-hover:translate-x-0.5" />
+                ) : (
+                  <ChevronLeft className="h-5 w-5 transition-transform group-hover:scale-110 group-hover:-translate-x-0.5" />
+                )}
+              </Button>
+            </div>
           </div>
         </div>
 
         {/* Navigation */}
         <nav className="flex-1 p-3 mt-1">
-          <div className="space-y-1">
+          <div className="space-y-2">
             {sidebarItems.map((item, index) => {
               const Icon = item.icon;
               const isActive = currentView === item.id;
@@ -237,37 +248,84 @@ export function MainLayout() {
                 >
                   <Button
                     variant="ghost"
-                    className={`w-full transition-all duration-200 ${
+                    className={`w-full transition-all duration-300 group relative overflow-hidden  ${
                       sidebarCollapsed 
-                        ? 'flex items-center justify-center h-10 px-0' 
-                        : 'px-3 py-2.5 h-auto justify-start'
+                        ? 'flex items-center justify-center h-12 px-0 rounded-xl' 
+                        : 'px-3 py-3 h-auto justify-start rounded-xl'
                     } ${
                       isActive 
-                        ? 'bg-card border border-border/50 shadow-sm text-foreground hover:bg-card/80' 
-                        : 'hover:bg-card/50 hover:translate-x-0.5'
+                        ? sidebarCollapsed
+                          ? 'bg-card/50 shadow-sm border-0'
+                          : 'bg-gradient-to-r from-primary/10 via-primary/5 to-transparent shadow-lg text-foreground hover:shadow-xl'
+                        : sidebarCollapsed
+                          ? 'hover:bg-muted/50 border-0'
+                          : 'hover:bg-gradient-to-r hover:from-card/80 hover:to-card/40 hover:shadow-md'
                     }`}
                     onClick={() => setCurrentView(item.id as any)}
                   >
+                    {/* Active indicator line */}
+                    {isActive && (
+                      <motion.div
+                        layoutId="activeIndicator"
+                        className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-gradient-to-b from-primary via-primary to-primary/80 rounded-r-full"
+                        transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                      />
+                    )}
+                    
                     {sidebarCollapsed ? (
-                      // Collapsed state - only icon, centered
-                      <div className={`${isActive ? 'text-primary' : 'text-muted-foreground'} transition-colors`}>
-                        <Icon className="h-4 w-4" />
+                      // Collapsed state 
+                      <div className="relative flex items-center justify-center">
+                        <Icon className={`h-4 w-4 transition-all duration-300 ${
+                          isActive 
+                            ? 'text-primary' 
+                            : 'text-muted-foreground group-hover:text-foreground'
+                        }`} />
+                        {isActive && (
+                          <motion.div
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            className="absolute -top-1 -right-1 w-2 h-2 bg-primary rounded-full"
+                          />
+                        )}
                       </div>
                     ) : (
-                      // Expanded state - full layout
-                      <div className="flex items-center gap-3 w-full">
-                        <div className={`${isActive ? 'text-primary' : 'text-muted-foreground'} transition-colors`}>
+                      // Expanded state 
+                      <div className="flex items-center gap-3 w-full relative">
+                        <div className={`
+                          p-2 rounded-lg transition-all duration-300 group-hover:scale-105
+                          ${isActive 
+                            ? 'bg-primary/15 text-primary shadow-md' 
+                            : 'text-muted-foreground group-hover:bg-card/60 group-hover:text-foreground'}
+                        `}>
                           <Icon className="h-4 w-4" />
                         </div>
                         <motion.div
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
-                          className="flex-1 text-left"
+                          className="flex-1 text-left min-w-0"
                         >
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm font-medium">{item.label}</span>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className={`text-sm font-semibold transition-colors ${
+                              isActive ? 'text-foreground' : 'text-foreground/90 group-hover:text-foreground'
+                            }`}>
+                              {item.label}
+                            </span>
+                            {isActive && (
+                              <motion.div
+                                initial={{ scale: 0, rotate: -90 }}
+                                animate={{ scale: 1, rotate: 0 }}
+                                transition={{ delay: 0.1, type: "spring" }}
+                                className="w-2 h-2 bg-primary rounded-full"
+                              />
+                            )}
                           </div>
-                          <p className="text-xs text-muted-foreground mt-0.5">{item.description}</p>
+                          <p className={`text-xs leading-relaxed transition-colors ${
+                            isActive 
+                              ? 'text-muted-foreground/80' 
+                              : 'text-muted-foreground/70 group-hover:text-muted-foreground'
+                          }`}>
+                            {item.description}
+                          </p>
                         </motion.div>
                       </div>
                     )}
@@ -278,27 +336,35 @@ export function MainLayout() {
           </div>
         </nav>
 
-        {/* Enhanced Theme Toggle */}
-        <div className="p-3 border-t border-border/50 bg-card/30">
+        {/* Enhanced Theme Toggle  */}
+        <div className="p-3 border-t border-border/20 bg-gradient-to-r from-background/98 to-background/95 backdrop-blur">
           {sidebarCollapsed ? (
             <div className="flex justify-center">
               <Button
                 variant="ghost"
                 size="icon"
                 onClick={toggleTheme}
-                className="h-8 w-8 hover:bg-card/50"
+                className="h-10 w-10 rounded-xl hover:bg-card/50 transition-all duration-300 group border border-transparent hover:border-border/30 hover:shadow-md"
               >
-                {getThemeIcon()}
+                <div className="transition-transform group-hover:scale-110">
+                  {getThemeIcon()}
+                </div>
               </Button>
             </div>
           ) : (
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="space-y-2"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="space-y-3"
             >
-              <p className="text-xs font-medium text-muted-foreground">Appearance</p>
-               <div className="grid grid-cols-3 gap-1">
+              <div className="flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-primary/40"></div>
+                <p className="text-xs font-semibold text-muted-foreground/90 uppercase tracking-wider">
+                  Appearance
+                </p>
+              </div>
+              
+              <div className="grid grid-cols-3 gap-1.5">
                 {['light', 'dark', 'system'].map((themeOption) => {
                   const isSelected = theme === themeOption;
                   const icons = {
@@ -314,20 +380,49 @@ export function MainLayout() {
                       variant="ghost"
                       size="sm"
                       onClick={() => setTheme(themeOption as any)}
-                      className={`h-8 border transition-all ${
+                      className={`h-8 border transition-all duration-300 rounded-lg group relative overflow-hidden ${
                         isSelected 
-                          ? 'bg-card border-border shadow-sm text-foreground' 
-                          : 'border-transparent hover:bg-card/50 hover:border-border/30'
+                          ? 'bg-gradient-to-br from-primary/15 via-primary/10 to-primary/5 border-primary/20 shadow-lg text-foreground' 
+                          : 'border-transparent hover:bg-gradient-to-br hover:from-card/80 hover:to-card/40 hover:border-border/30 hover:shadow-md'
                       }`}
+                      
                     >
-                      <ThemeIcon className="h-3 w-3" />
+                      {isSelected && (
+                        <motion.div
+                          layoutId="themeIndicator"
+                          className="absolute inset-0 bg-gradient-to-br from-primary/10 to-primary/5 rounded-lg"
+                          transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                        />
+                      )}
+                      <div className={`relative transition-all duration-300 ${
+                        isSelected ? 'scale-110' : 'group-hover:scale-105'
+                      }`}>
+                        <ThemeIcon className="h-3 w-3" />
+                      </div>
+                      {isSelected && (
+                        <motion.div
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          className="absolute top-1 right-1 w-1.5 h-1.5 bg-primary rounded-full"
+                        />
+                      )}
                     </Button>
                   );
                 })}
               </div>
-              <p className="text-xs text-muted-foreground capitalize text-center">
-                {theme} mode active
-              </p>
+              
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.2 }}
+                className="text-center"
+              >
+                <div className="text-xs text-muted-foreground/70 capitalize flex items-center justify-center gap-1.5">
+                  <span className="w-1 h-1 rounded-full bg-primary/60 block"></span>
+                  {theme} mode active
+                  <span className="w-1 h-1 rounded-full bg-primary/60 block"></span>
+                </div>
+              </motion.div>
             </motion.div>
           )}
         </div>
@@ -396,6 +491,7 @@ export function MainLayout() {
             </div>
           </div>
         </div>
+        
         {/* Error Banner */}
         <AnimatePresence>
           {error && (

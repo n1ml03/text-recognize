@@ -31,38 +31,46 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
+# Optimized imports with functools.lru_cache for better performance
+from functools import lru_cache
+import difflib
+
 # Lazy imports for better startup performance
 _levenshtein = None
 _pypdfium2 = None
 _docx2txt = None
 _striprtf = None
 
+@lru_cache(maxsize=1)
 def get_levenshtein():
-    """Lazy import Levenshtein for text similarity calculations"""
+    """Cached lazy import Levenshtein for text similarity calculations"""
     global _levenshtein
     if _levenshtein is None:
         import Levenshtein
         _levenshtein = Levenshtein
     return _levenshtein
 
+@lru_cache(maxsize=1)
 def get_pypdfium2():
-    """Lazy import pypdfium2 for PDF processing"""
+    """Cached lazy import pypdfium2 for PDF processing"""
     global _pypdfium2
     if _pypdfium2 is None:
         import pypdfium2
         _pypdfium2 = pypdfium2
     return _pypdfium2
 
+@lru_cache(maxsize=1)
 def get_docx2txt():
-    """Lazy import docx2txt for DOCX processing"""
+    """Cached lazy import docx2txt for DOCX processing"""
     global _docx2txt
     if _docx2txt is None:
         import docx2txt
         _docx2txt = docx2txt
     return _docx2txt
 
+@lru_cache(maxsize=1)
 def get_striprtf():
-    """Lazy import striprtf for RTF processing"""
+    """Cached lazy import striprtf for RTF processing"""
     global _striprtf
     if _striprtf is None:
         from striprtf.striprtf import rtf_to_text
@@ -202,15 +210,16 @@ class PerformanceMetrics:
 
 performance_metrics = PerformanceMetrics()
 
+# Enhanced file hashing with metadata
+@lru_cache(maxsize=1000)
 def get_file_hash(file_path: str) -> str:
-    """Generate hash for file caching"""
+    """Generate optimized hash for file caching with metadata"""
     try:
-        # Use file path, size, and modification time for hash
         stat = os.stat(file_path)
-        hash_input = f"{file_path}_{stat.st_size}_{stat.st_mtime}"
-        return hashlib.md5(hash_input.encode()).hexdigest()
+        hash_input = f"{file_path}_{stat.st_size}_{stat.st_mtime}_{stat.st_ino}"
+        return hashlib.blake2b(hash_input.encode(), digest_size=16).hexdigest()
     except Exception:
-        return hashlib.md5(file_path.encode()).hexdigest()
+        return hashlib.blake2b(file_path.encode(), digest_size=16).hexdigest()
 
 def update_performance_metrics(metric_name: str, value: Any = None):
     """Update performance metrics thread-safely using the new PerformanceMetrics class"""
@@ -296,13 +305,13 @@ def clear_expired_cache():
         if expired_keys:
             logger.info(f"Cleared {len(expired_keys)} expired cache entries")
 
-# Configuration constants
-SUPPORTED_IMAGE_FORMATS = ['.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.webp']
-SUPPORTED_VIDEO_FORMATS = ['.mp4', '.avi', '.mov', '.mkv', '.wmv', '.flv']
-SUPPORTED_DOCUMENT_FORMATS = ['.pdf', '.docx', '.txt', '.rtf']
-MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB
-SIMILARITY_THRESHOLD = 0.85  # Text similarity threshold for deduplication
-MIN_CONFIDENCE = 0.5  # Minimum OCR confidence threshold
+# Configuration constants - enhanced
+SUPPORTED_IMAGE_FORMATS = ['.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.webp', '.gif']
+SUPPORTED_VIDEO_FORMATS = ['.mp4', '.avi', '.mov', '.mkv', '.wmv', '.flv', '.webm', '.m4v', '.3gp']
+SUPPORTED_DOCUMENT_FORMATS = ['.pdf', '.docx', '.txt', '.rtf', '.doc']
+MAX_FILE_SIZE = 200 * 1024 * 1024  # Increased to 200MB
+SIMILARITY_THRESHOLD = 0.85
+MIN_CONFIDENCE = 0.5
 
 # BoundingBox, WordDetail, and OCRResult moved to models.py
 
@@ -398,10 +407,12 @@ def check_memory_usage():
         return True
 
 async def initialize_ocr():
-    """Initialize PaddleOCR instance"""
+    """Enhanced OCR initialization with optimization"""
     global ocr_instance
     try:
-        logger.info("Initializing PaddleOCR...")
+        logger.info("Initializing PaddleOCR with optimized settings...")
+        
+        # Initialize with optimized settings for better performance
         ocr_instance = PaddleOCR(
             text_detection_model_name="PP-OCRv5_mobile_det",
             text_recognition_model_name="PP-OCRv5_mobile_rec",
@@ -409,8 +420,10 @@ async def initialize_ocr():
             use_doc_unwarping=False,
             use_textline_orientation=False,
         )
+        
         logger.info("PaddleOCR initialized successfully")
-        cleanup_memory()  # Clean up after initialization
+        cleanup_memory()
+        
     except Exception as e:
         logger.error(f"Failed to initialize PaddleOCR: {e}")
         raise
@@ -512,172 +525,190 @@ app.add_middleware(
 # Include video processing routes
 app.include_router(video_router)
 
-def preprocess_image(image_path: str, options: PreprocessingOptions) -> str:
+def enhanced_preprocess_image(image_path: str, options: PreprocessingOptions) -> str:
     """
-    Optimized image preprocessing with memory-efficient operations and smart caching
-    Returns path to preprocessed image
+    Enhanced image preprocessing pipeline that preserves quality while improving OCR accuracy
     """
     try:
-        # Generate cache key for preprocessing
+        preprocessing_start = time.time()
+        
         file_hash = get_file_hash(image_path)
-        options_hash = hashlib.md5(str(options.model_dump()).encode()).hexdigest()
+        options_hash = hashlib.blake2b(str(options.model_dump()).encode(), digest_size=8).hexdigest()
         cache_key = f"preprocess_{file_hash}_{options_hash}"
-
-        # Check if preprocessed version exists in cache
+        
         cached_result = get_cached_result(cache_key)
         if cached_result and os.path.exists(cached_result.get('path', '')):
-            logger.debug(f"Using cached preprocessed image: {cached_result['path']}")
+            logger.debug(f"Using cached preprocessed image")
             return cached_result['path']
-
-        # Read image with memory optimization
+        
+        # Read image with optimal settings
         img = cv2.imread(image_path, cv2.IMREAD_COLOR)
         if img is None:
             raise ValueError(f"Could not read image: {image_path}")
-
-        # Get image dimensions for optimization decisions
+        
         height, width = img.shape[:2]
-        total_pixels = height * width
-
-        # Early return if no preprocessing needed
+        logger.debug(f"Processing image: {width}x{height}")
+        
+        # Skip preprocessing if not needed
         if not any([options.enhance_contrast, options.denoise, options.apply_morphology,
                    options.threshold_method != "none"]):
+            update_performance_metrics("preprocessing_time", time.time() - preprocessing_start)
             return image_path
-
-        # Resize large images to improve processing speed
-        if total_pixels > 2000000:  # More than 2MP
-            scale_factor = np.sqrt(2000000 / total_pixels)
+        
+        # Preserve original resolution - only resize if absolutely necessary
+        max_dimension = 4000  # Increased from 2000 for better quality
+        if width > max_dimension or height > max_dimension:
+            scale_factor = max_dimension / max(width, height)
             new_width = int(width * scale_factor)
             new_height = int(height * scale_factor)
-            img = cv2.resize(img, (new_width, new_height), interpolation=cv2.INTER_AREA)
-            logger.debug(f"Resized image from {width}x{height} to {new_width}x{new_height}")
-
-        # Convert to grayscale efficiently
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) if len(img.shape) == 3 else img.copy()
-        del img  # Clear original image from memory immediately
-
-        # Apply preprocessing operations in optimal order
+            img = cv2.resize(img, (new_width, new_height), interpolation=cv2.INTER_LANCZOS4)
+            logger.debug(f"Resized image to {new_width}x{new_height} for processing")
+        
+        # Convert to grayscale with optimal method
+        if len(img.shape) == 3:
+            # Use weighted conversion for better text contrast
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        else:
+            gray = img.copy()
+        
+        # Enhanced preprocessing pipeline
         if options.denoise:
-            # Use faster denoising for large images
-            if total_pixels > 1000000:
-                gray = cv2.medianBlur(gray, 3)  # Faster alternative
-            else:
-                gray = cv2.fastNlMeansDenoising(gray, h=10, templateWindowSize=7, searchWindowSize=21)
-
+            # Adaptive denoising based on image characteristics
+            gray = cv2.bilateralFilter(gray, 9, 75, 75)
+        
         if options.enhance_contrast:
-            # Use CLAHE for better contrast enhancement
-            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+            # Enhanced contrast using CLAHE with optimized parameters
+            clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
             gray = clahe.apply(gray)
-
-        # Apply thresholding
+        
+        # Enhanced thresholding
         if options.threshold_method == "adaptive_gaussian":
             gray = cv2.adaptiveThreshold(
-                gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2
+                gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 
+                blockSize=15, C=3  # Optimized parameters
             )
         elif options.threshold_method == "otsu":
-            # Use Gaussian blur before Otsu for better results
-            gray = cv2.GaussianBlur(gray, (5, 5), 0)
+            # Apply Gaussian blur before Otsu for better results
+            gray = cv2.GaussianBlur(gray, (3, 3), 0)
             _, gray = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-
+        elif options.threshold_method == "adaptive_mean":
+            gray = cv2.adaptiveThreshold(
+                gray, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 
+                blockSize=15, C=3
+            )
+        
         if options.apply_morphology:
-            # Use optimized kernel operations
+            # Enhanced morphological operations
             kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
             gray = cv2.morphologyEx(gray, cv2.MORPH_CLOSE, kernel, iterations=1)
-
-        # Save preprocessed image with optimized compression
+            gray = cv2.morphologyEx(gray, cv2.MORPH_OPEN, kernel, iterations=1)
+        
+        # Save with optimal compression settings
         temp_path = tempfile.mktemp(suffix='.png')
-        cv2.imwrite(temp_path, gray, [cv2.IMWRITE_PNG_COMPRESSION, 1])  # Fast compression
-        del gray  # Clear processed image from memory
-
-        # Cache the preprocessed image path
+        cv2.imwrite(temp_path, gray, [cv2.IMWRITE_PNG_COMPRESSION, 3])  # Better compression
+        
+        # Cache the result
         cache_result(cache_key, {'path': temp_path})
-
+        
+        update_performance_metrics("preprocessing_time", time.time() - preprocessing_start)
         return temp_path
-
+        
     except Exception as e:
-        logger.error(f"Image preprocessing failed: {e}")
-        return image_path  # Return original if preprocessing fails
+        logger.error(f"Enhanced image preprocessing failed: {e}")
+        update_performance_metrics("preprocessing_time", time.time() - preprocessing_start)
+        return image_path
 
-def extract_video_frames(video_path: str, options: VideoProcessingOptions) -> List[str]:
+def extract_video_frames_optimized(video_path: str, options: VideoProcessingOptions) -> List[str]:
     """
-    Optimized video frame extraction with intelligent sampling and memory management
-    Returns list of frame file paths
+    Optimized video frame extraction with intelligent sampling and enhanced memory management
     """
     try:
         cap = cv2.VideoCapture(video_path)
         if not cap.isOpened():
             raise ValueError(f"Could not open video: {video_path}")
-
-        frames_dir = tempfile.mkdtemp(prefix="video_frames_")
+        
+        frames_dir = tempfile.mkdtemp(prefix="video_frames_optimized_")
         frame_paths = []
         frame_count = 0
         extracted_count = 0
-
+        
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         fps = cap.get(cv2.CAP_PROP_FPS)
-
-        logger.info(f"Processing video: {total_frames} frames at {fps} FPS")
-
-        # Optimize frame interval based on video length
-        if total_frames > 10000:  # Very long video
-            effective_interval = max(options.frame_interval, total_frames // 500)
-            logger.info(f"Adjusted frame interval to {effective_interval} for long video")
+        duration = total_frames / fps if fps > 0 else 0
+        
+        logger.info(f"Processing video: {total_frames} frames, {fps:.1f} FPS, {duration:.1f}s duration")
+        
+        # Intelligent frame interval calculation
+        if duration > 300:  # More than 5 minutes
+            effective_interval = max(options.frame_interval, int(fps * 2))  # Extract every 2 seconds
+        elif duration > 60:  # More than 1 minute
+            effective_interval = max(options.frame_interval, int(fps))  # Extract every second
         else:
             effective_interval = options.frame_interval
-
-        # Process frames in batches for better memory management
-        batch_size = 10
-
+        
+        logger.info(f"Using frame interval: {effective_interval}")
+        
+        # Batch processing settings
+        batch_size = 20  # Increased batch size
+        frame_buffer = []
+        
         while cap.isOpened() and extracted_count < options.max_frames:
             ret, frame = cap.read()
             if not ret:
                 break
-
-            # Extract frame at specified interval
+            
             if frame_count % effective_interval == 0:
-                # Resize frame if too large to save memory
+                # Intelligent resizing - preserve aspect ratio
                 height, width = frame.shape[:2]
                 if width > 1920 or height > 1080:
                     scale_factor = min(1920/width, 1080/height)
                     new_width = int(width * scale_factor)
                     new_height = int(height * scale_factor)
-                    frame = cv2.resize(frame, (new_width, new_height), interpolation=cv2.INTER_AREA)
-
-                frame_path = os.path.join(frames_dir, f"frame_{extracted_count:06d}.jpg")
-                # Use optimized JPEG compression
-                cv2.imwrite(frame_path, frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
-                frame_paths.append(frame_path)
+                    frame = cv2.resize(frame, (new_width, new_height), interpolation=cv2.INTER_LANCZOS4)
+                
+                frame_buffer.append((frame, extracted_count))
                 extracted_count += 1
-
-                # Batch processing for memory efficiency
-                if extracted_count % batch_size == 0:
-                    # Force garbage collection every batch
-                    gc.collect()
-
+                
+                # Process batch when full
+                if len(frame_buffer) >= batch_size:
+                    for frame_data, idx in frame_buffer:
+                        frame_path = os.path.join(frames_dir, f"frame_{idx:06d}.jpg")
+                        cv2.imwrite(frame_path, frame_data, [cv2.IMWRITE_JPEG_QUALITY, 90])
+                        frame_paths.append(frame_path)
+                    
+                    frame_buffer.clear()
+                    gc.collect()  # Memory cleanup after batch
+            
             frame_count += 1
-
-            # Memory check during processing
-            if frame_count % 100 == 0:
+            
+            # Periodic memory check
+            if frame_count % 200 == 0:
                 if not check_memory_usage():
-                    logger.warning("High memory usage during frame extraction, reducing quality")
+                    logger.warning("Memory pressure detected, reducing extraction quality")
                     break
-
+        
+        # Process remaining frames in buffer
+        for frame_data, idx in frame_buffer:
+            frame_path = os.path.join(frames_dir, f"frame_{idx:06d}.jpg")
+            cv2.imwrite(frame_path, frame_data, [cv2.IMWRITE_JPEG_QUALITY, 90])
+            frame_paths.append(frame_path)
+        
         cap.release()
-        logger.info(f"Extracted {extracted_count} frames from video")
+        logger.info(f"Extracted {len(frame_paths)} frames from video")
         return frame_paths
-
+        
     except Exception as e:
-        logger.error(f"Video frame extraction failed: {e}")
+        logger.error(f"Enhanced video frame extraction failed: {e}")
         raise
 
-def process_frame_batch(frame_paths: List[str], preprocessing_options: PreprocessingOptions) -> List[Dict]:
+async def process_frame_batch_parallel(frame_paths: List[str], preprocessing_options: PreprocessingOptions) -> List[Dict]:
     """
-    Process a batch of frames in parallel for better performance
+    Enhanced parallel frame processing with better error handling and progress tracking
     """
     results = []
-
-    def process_single_frame(frame_path: str) -> Optional[Dict]:
+    
+    def process_single_frame_sync(frame_path: str) -> Optional[Dict]:
         try:
-            # Use asyncio.run to handle the async function
             import asyncio
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
@@ -687,397 +718,239 @@ def process_frame_batch(frame_paths: List[str], preprocessing_options: Preproces
                     "frame_path": frame_path,
                     "text": result.text.strip(),
                     "confidence": result.confidence,
-                    "word_count": len(result.word_details)
+                    "word_count": len(result.word_details),
+                    "processing_time": result.processing_time
                 }
             finally:
                 loop.close()
         except Exception as e:
-            logger.warning(f"Failed to process frame {frame_path}: {e}")
+            logger.warning(f"Failed to process frame {os.path.basename(frame_path)}: {e}")
             return None
-
-    # Process frames in parallel using thread pool
+    
+    # Enhanced parallel processing
     if thread_pool:
-        futures = [thread_pool.submit(process_single_frame, frame_path) for frame_path in frame_paths]
-        for future in futures:
-            try:
-                result = future.result(timeout=30)  # 30 second timeout per frame
-                if result:
-                    results.append(result)
-            except Exception as e:
-                logger.warning(f"Frame processing timeout or error: {e}")
+        # Process in smaller chunks for better memory management
+        chunk_size = 5
+        for i in range(0, len(frame_paths), chunk_size):
+            chunk_paths = frame_paths[i:i + chunk_size]
+            futures = [thread_pool.submit(process_single_frame_sync, path) for path in chunk_paths]
+            
+            for future in futures:
+                try:
+                    result = future.result(timeout=45)  # Increased timeout
+                    if result and result["text"]:  # Only include frames with text
+                        results.append(result)
+                except Exception as e:
+                    logger.warning(f"Frame processing error: {e}")
+            
+            # Memory cleanup after each chunk
+            gc.collect()
     else:
-        # Fallback to sequential processing
+        # Fallback sequential processing
         for frame_path in frame_paths:
-            result = process_single_frame(frame_path)
-            if result:
+            result = process_single_frame_sync(frame_path)
+            if result and result["text"]:
                 results.append(result)
-
+    
     return results
 
-def calculate_text_similarity(text1: str, text2: str) -> float:
-    """
-    Optimized text similarity calculation with multiple algorithms, caching, and early termination
-    """
+# Enhanced text similarity using multiple algorithms
+@lru_cache(maxsize=10000)
+def calculate_text_similarity_cached(text1: str, text2: str) -> float:
+    """Cached text similarity calculation with multiple algorithms"""
     if not text1 or not text2:
         return 0.0
-
-    # Normalize texts
+    
     text1_norm = text1.strip().lower()
     text2_norm = text2.strip().lower()
-
-    # Exact match check
+    
     if text1_norm == text2_norm:
         return 1.0
-
-    # Quick length-based filtering for very different texts
+    
+    # Quick length-based filtering
     len1, len2 = len(text1_norm), len(text2_norm)
     if len1 == 0 or len2 == 0:
         return 0.0
-
-    # If length difference is too large, texts are likely different
+    
     length_ratio = min(len1, len2) / max(len1, len2)
-    if length_ratio < 0.3:  # More than 70% length difference
+    if length_ratio < 0.3:
         return 0.0
-
-    # Generate cache key for similarity calculation
-    cache_key = f"sim_{hashlib.md5((text1_norm + text2_norm).encode()).hexdigest()[:16]}"
-    cached_similarity = get_cached_result(cache_key)
-    if cached_similarity is not None:
-        return cached_similarity.get('similarity', 0.0)
-
-    # Use Jaccard similarity for quick filtering
-    words1 = set(text1_norm.split())
-    words2 = set(text2_norm.split())
-
-    if not words1 or not words2:
-        # Fall back to character-based comparison for very short texts
-        chars1, chars2 = set(text1_norm), set(text2_norm)
-        intersection = len(chars1 & chars2)
-        union = len(chars1 | chars2)
-        jaccard_sim = intersection / union if union > 0 else 0.0
-    else:
-        intersection = len(words1 & words2)
-        union = len(words1 | words2)
-        jaccard_sim = intersection / union if union > 0 else 0.0
-
-    # If Jaccard similarity is very low, don't bother with expensive Levenshtein
-    if jaccard_sim < 0.1:
-        similarity = jaccard_sim
-    else:
-        # Use Levenshtein distance for final similarity calculation
-        # Optimize for shorter strings by limiting comparison length
-        max_compare_len = 200  # Limit comparison to first 200 characters
-        text1_compare = text1_norm[:max_compare_len]
-        text2_compare = text2_norm[:max_compare_len]
-
-        try:
+    
+    # Use difflib for fast similarity calculation
+    similarity = difflib.SequenceMatcher(None, text1_norm, text2_norm).ratio()
+    
+    # Use Levenshtein for fine-tuning if available
+    try:
+        if similarity > 0.5:  # Only for promising candidates
             levenshtein = get_levenshtein()
+            max_compare_len = 200
+            text1_compare = text1_norm[:max_compare_len]
+            text2_compare = text2_norm[:max_compare_len]
+            
             distance = levenshtein.distance(text1_compare, text2_compare)
             max_len = max(len(text1_compare), len(text2_compare))
             levenshtein_sim = 1.0 - (distance / max_len) if max_len > 0 else 0.0
-
-            # Combine Jaccard and Levenshtein similarities with weights
-            similarity = 0.3 * jaccard_sim + 0.7 * levenshtein_sim
-        except Exception as e:
-            logger.warning(f"Levenshtein calculation failed: {e}, falling back to Jaccard")
-            similarity = jaccard_sim
-
-    # Cache the result for future use
-    cache_result(cache_key, {'similarity': similarity})
-
+            
+            # Combine similarities
+            similarity = 0.3 * similarity + 0.7 * levenshtein_sim
+    except:
+        pass  # Fall back to difflib result
+    
     return similarity
 
-def deduplicate_texts(texts: List[str], threshold: float = SIMILARITY_THRESHOLD) -> List[str]:
-    """
-    Optimized text deduplication with early termination and clustering
-    """
-    if not texts:
-        return []
-
-    if len(texts) == 1:
+def deduplicate_texts_optimized(texts: List[str], threshold: float = SIMILARITY_THRESHOLD) -> List[str]:
+    """Optimized text deduplication with clustering"""
+    if not texts or len(texts) <= 1:
         return texts
-
-    # Sort texts by length for better clustering
-    texts_with_indices = [(text, i) for i, text in enumerate(texts)]
+    
+    # Pre-filter very short texts
+    filtered_texts = [text.strip() for text in texts if len(text.strip()) >= 3]
+    if not filtered_texts:
+        return []
+    
+    # Sort by length for better clustering
+    texts_with_indices = [(text, i) for i, text in enumerate(filtered_texts)]
     texts_with_indices.sort(key=lambda x: len(x[0]), reverse=True)
-
+    
     unique_texts = []
     processed_indices = set()
-
+    
     for text, original_index in texts_with_indices:
         if original_index in processed_indices:
             continue
-
-        # Quick filtering: skip very short texts
-        if len(text.strip()) < 3:
-            continue
-
+        
         is_duplicate = False
-
-        # Use early termination for similarity checking
         for unique_text in unique_texts:
-            # Quick length check first
-            len_ratio = min(len(text), len(unique_text)) / max(len(text), len(unique_text))
-            if len_ratio < 0.5:  # Very different lengths
-                continue
-
-            similarity = calculate_text_similarity(text, unique_text)
+            similarity = calculate_text_similarity_cached(text, unique_text)
             if similarity >= threshold:
                 is_duplicate = True
                 break
-
+        
         if not is_duplicate:
             unique_texts.append(text)
             processed_indices.add(original_index)
-
+    
     return unique_texts
 
 async def perform_ocr_on_image(image_path: str, options: PreprocessingOptions) -> OCRResult:
     """
-    Perform OCR on a single image using PaddleOCR with intelligent caching and optimizations
+    Simplified and optimized OCR function that directly extracts text from PaddleOCR results
     """
-    start_time = datetime.now()
-
+    start_time = time.time()
+    
     try:
-        # Generate cache key based on file and options
+        # Generate cache key
         file_hash = get_file_hash(image_path)
-        options_hash = hashlib.md5(str(options.model_dump()).encode()).hexdigest()
+        options_hash = hashlib.blake2b(str(options.model_dump()).encode(), digest_size=8).hexdigest()
         cache_key = f"ocr_{file_hash}_{options_hash}"
-
-        # Check cache first
+        
+        # Check cache
         cached_result = get_cached_result(cache_key)
         if cached_result:
-            logger.debug(f"Returning cached OCR result for {image_path}")
+            logger.debug(f"Returning cached OCR result")
             return OCRResult(**cached_result)
-
-        # Check memory before processing
+        
+        # Memory check
         if not check_memory_usage():
-            logger.warning("High memory usage detected before OCR processing")
-            # Force cleanup before proceeding
             cleanup_memory(force_full_gc=True)
-
+        
         # Preprocess image if needed
         processed_image_path = image_path
-        preprocessing_needed = any([
-            options.enhance_contrast,
-            options.denoise,
-            options.apply_morphology,
-            options.threshold_method != "none"
-        ])
-
-        if preprocessing_needed:
-            processed_image_path = preprocess_image(image_path, options)
-
+        if any([options.enhance_contrast, options.denoise, options.apply_morphology, 
+                options.threshold_method != "none"]):
+            processed_image_path = enhanced_preprocess_image(image_path, options)
+        
         # Perform OCR
         if ocr_instance is None:
             raise RuntimeError("OCR instance not initialized")
-
-        # Use the correct PaddleOCR predict method with error handling
-        try:
-            result = ocr_instance.predict(processed_image_path)
-        except Exception as ocr_error:
-            logger.error(f"PaddleOCR prediction failed: {ocr_error}")
-            # Clean up and re-raise
-            if processed_image_path != image_path:
-                try:
-                    os.unlink(processed_image_path)
-                except:
-                    pass
-            raise ocr_error
-
-        # Clean up preprocessed image immediately after OCR
+        
+        # Use PaddleOCR's standard ocr method - it returns the correct format directly
+        result = ocr_instance.ocr(processed_image_path)
+        
+        # Clean up preprocessed image
         if processed_image_path != image_path:
             try:
                 os.unlink(processed_image_path)
-            except Exception as cleanup_error:
-                logger.warning(f"Failed to cleanup preprocessed image: {cleanup_error}")
-
-        # Process results based on PaddleOCR v3.x format
+            except:
+                pass
+        
+        # Process results - simplified extraction since PaddleOCR returns standard format
         extracted_text = ""
         word_details = []
         total_confidence = 0.0
         word_count = 0
-
-        if result and len(result) > 0:
-            # PaddleOCR v3.x returns Result objects with json attribute
-            first_result = result[0]
-
-            if hasattr(first_result, 'json'):
-                # Use the json attribute to get structured data
-                json_data = first_result.json
-
-                # PaddleOCR v3.x stores data in 'res' key
-                if 'res' in json_data:
-                    res_data = json_data['res']
-
-                    # Extract text from rec_texts field
-                    if 'rec_texts' in res_data:
-                        rec_texts = res_data['rec_texts']
-                        rec_scores = res_data.get('rec_scores', [])
-                        rec_polys = res_data.get('rec_polys', [])
-
-                        for i, text in enumerate(rec_texts):
-                            confidence = rec_scores[i] if i < len(rec_scores) else 1.0
-
-                            if confidence >= MIN_CONFIDENCE:
-                                extracted_text += text + " "
-
-                                # Calculate bounding box from polygon if available
-                                bbox_coords = None
-                                if i < len(rec_polys):
-                                    bbox_coords = rec_polys[i]
-
-                                # Split text into individual words for word counting
-                                words = text.strip().split()
-
-                                if bbox_coords and len(bbox_coords) >= 4:
-                                    # bbox_coords is [[x1,y1], [x2,y2], [x3,y3], [x4,y4]]
-                                    x_coords = [point[0] for point in bbox_coords]
-                                    y_coords = [point[1] for point in bbox_coords]
-                                    x_min, x_max = min(x_coords), max(x_coords)
-                                    y_min, y_max = min(y_coords), max(y_coords)
-
-                                    # For each word in this text region, create a word detail
-                                    # Since we don't have individual word bounding boxes, we'll use the region bbox
-                                    for word in words:
-                                        if word:  # Skip empty strings
-                                            word_details.append(WordDetail(
-                                                text=word,
-                                                confidence=confidence,
-                                                bbox=BoundingBox(
-                                                    x=int(x_min),
-                                                    y=int(y_min),
-                                                    width=int(x_max - x_min),
-                                                    height=int(y_max - y_min)
-                                                )
-                                            ))
-                                            total_confidence += confidence
-                                            word_count += 1
-                                else:
-                                    # No bounding box info, create word details with dummy bbox
-                                    for word in words:
-                                        if word:  # Skip empty strings
-                                            word_details.append(WordDetail(
-                                                text=word,
-                                                confidence=confidence,
-                                                bbox=BoundingBox(x=0, y=0, width=0, height=0)
-                                            ))
-                                            total_confidence += confidence
-                                            word_count += 1
-                    else:
-                        logger.warning("No rec_texts found in res data")
-                else:
-                    logger.warning("No 'res' key found in JSON data")
-            else:
-                # Fallback for older PaddleOCR format or direct result
-                logger.info("No json attribute found, trying direct result parsing")
-
-                # Try to parse as old format: list of [bbox, (text, confidence)]
-                if isinstance(first_result, list):
-                    for line in first_result:
-                        if len(line) >= 2:
-                            bbox_coords = line[0]  # [[x1,y1], [x2,y2], [x3,y3], [x4,y4]]
-                            text_info = line[1]    # (text, confidence)
-
-                            if len(text_info) >= 2:
-                                text = text_info[0]
-                                confidence = float(text_info[1])
-
-                                if confidence >= MIN_CONFIDENCE:
-                                    extracted_text += text + " "
-
-                                    # Split text into individual words
-                                    words = text.strip().split()
-
-                                    # Calculate bounding box
-                                    if bbox_coords and len(bbox_coords) >= 4:
-                                        x_coords = [point[0] for point in bbox_coords]
-                                        y_coords = [point[1] for point in bbox_coords]
-                                        x_min, x_max = min(x_coords), max(x_coords)
-                                        y_min, y_max = min(y_coords), max(y_coords)
-
-                                        # Create word details for each word
-                                        for word in words:
-                                            if word:  # Skip empty strings
-                                                word_details.append(WordDetail(
-                                                    text=word,
-                                                    confidence=confidence,
-                                                    bbox=BoundingBox(
-                                                        x=int(x_min),
-                                                        y=int(y_min),
-                                                        width=int(x_max - x_min),
-                                                        height=int(y_max - y_min)
-                                                    )
-                                                ))
-                                                total_confidence += confidence
-                                                word_count += 1
-                                    else:
-                                        # Create word details for each word with dummy bbox
-                                        for word in words:
-                                            if word:  # Skip empty strings
-                                                word_details.append(WordDetail(
-                                                    text=word,
-                                                    confidence=confidence,
-                                                    bbox=BoundingBox(x=0, y=0, width=0, height=0)
-                                                ))
-                                                total_confidence += confidence
-                                                word_count += 1
         
-        # Calculate average confidence
+        if result and result[0]:  # Check if OCR found any text
+            for line in result[0]:
+                if len(line) >= 2:
+                    bbox_coords = line[0]  # Bounding box coordinates
+                    text_data = line[1]    # (text, confidence)
+                    
+                    if len(text_data) >= 2:
+                        text = text_data[0].strip()
+                        confidence = float(text_data[1])
+                        
+                        if confidence >= MIN_CONFIDENCE and text:
+                            extracted_text += text + " "
+                            
+                            # Calculate bounding box
+                            if bbox_coords and len(bbox_coords) >= 4:
+                                x_coords = [point[0] for point in bbox_coords]
+                                y_coords = [point[1] for point in bbox_coords]
+                                x_min, x_max = min(x_coords), max(x_coords)
+                                y_min, y_max = min(y_coords), max(y_coords)
+                                
+                                # Create word details for the entire text region
+                                words = text.split()
+                                for word in words:
+                                    if word:
+                                        word_details.append(WordDetail(
+                                            text=word,
+                                            confidence=confidence,
+                                            bbox=BoundingBox(
+                                                x=int(x_min), y=int(y_min),
+                                                width=int(x_max - x_min), height=int(y_max - y_min)
+                                            )
+                                        ))
+                                        total_confidence += confidence
+                                        word_count += 1
+        
+        # Calculate metrics
         avg_confidence = total_confidence / word_count if word_count > 0 else 0.0
+        processing_time = time.time() - start_time
         
-        # Calculate processing time
-        processing_time = (datetime.now() - start_time).total_seconds()
-
-        # Clean up memory after processing
-        cleanup_memory()
-
-        # Create result object
+        # Create result
         result = OCRResult(
             text=extracted_text.strip(),
             confidence=avg_confidence,
             processing_time=processing_time,
             word_details=word_details,
-            word_count=word_count
+            word_count=word_count,
+            file_path=image_path,
+            success=True,
+            metadata={"ocr_engine": "PaddleOCR", "preprocessing_applied": any([
+                options.enhance_contrast, options.denoise, options.apply_morphology,
+                options.threshold_method != "none"
+            ])}
         )
-
-        # Cache the result for future use
+        
+        # Cache result
         cache_result(cache_key, result.model_dump())
-
-        # Update performance metrics
+        
+        # Update metrics
         update_performance_metrics("request")
         update_performance_metrics("processing_time", processing_time)
         update_performance_metrics("image_processed")
-
-        return result
-
-    except Exception as e:
-        # Update error metrics
-        update_performance_metrics("error")
-
-        # Enhanced error logging with context
-        error_context = {
-            "image_path": image_path,
-            "preprocessing_options": options.model_dump() if options else None,
-            "error_type": type(e).__name__,
-            "error_message": str(e)
-        }
-        logger.error(f"OCR processing failed: {error_context}")
-
-        # Clean up on error
+        
         cleanup_memory()
-
-        # Provide more specific error messages
-        if "CUDA" in str(e) or "GPU" in str(e):
-            error_detail = "GPU processing failed, falling back to CPU processing may resolve this issue"
-        elif "memory" in str(e).lower() or "allocation" in str(e).lower():
-            error_detail = "Insufficient memory for processing. Try reducing image size or restarting the service"
-        elif "file" in str(e).lower() or "path" in str(e).lower():
-            error_detail = f"File access error: {str(e)}"
-        else:
-            error_detail = f"OCR processing failed: {str(e)}"
-
-        raise HTTPException(status_code=500, detail=error_detail)
+        return result
+        
+    except Exception as e:
+        update_performance_metrics("error")
+        logger.error(f"OCR processing failed for {image_path}: {e}")
+        
+        cleanup_memory()
+        raise HTTPException(status_code=500, detail=f"OCR processing failed: {str(e)}")
 
 @app.post("/ocr/image", response_model=OCRResult)
 async def process_image_ocr_upload(
@@ -1140,38 +1013,187 @@ async def process_image_ocr_upload(
 
 @app.post("/ocr/image-path", response_model=OCRResult)
 async def process_image_ocr_path(request: Request):
-    """
-    Process OCR on an image file by file path (for Tauri backend)
-    """
+    """Enhanced image OCR processing by file path"""
     try:
-        # Parse JSON request body
         body = await request.json()
         file_path = body.get("file_path")
         preprocessing_options_data = body.get("preprocessing_options", {})
-
+        
         if not file_path:
             raise HTTPException(status_code=400, detail="file_path is required")
-
-        # Validate file exists
+        
         if not os.path.exists(file_path):
             raise HTTPException(status_code=404, detail=f"Image file not found: {file_path}")
-
-        # Validate file is an image
-        if not any(file_path.lower().endswith(ext) for ext in SUPPORTED_IMAGE_FORMATS):
-            raise HTTPException(status_code=400, detail="File must be an image")
-
-        # Create preprocessing options
+        
+        # Enhanced file validation
+        file_ext = Path(file_path).suffix.lower()
+        if file_ext not in SUPPORTED_IMAGE_FORMATS:
+            raise HTTPException(status_code=400, detail=f"Unsupported format: {file_ext}")
+        
         preprocessing_options = PreprocessingOptions(**preprocessing_options_data)
-
-        # Process OCR
         result = await perform_ocr_on_image(file_path, preprocessing_options)
         return result
-
+        
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Unexpected error in process_image_ocr_path: {e}")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        logger.error(f"Enhanced image path OCR error: {e}")
+        raise HTTPException(status_code=500, detail=f"Processing failed: {str(e)}")
+
+@app.post("/ocr/multi-file", response_model=Dict[str, Any])
+async def process_multi_file_ocr(request: Request):
+    """Process multiple files of different types (images, videos, documents) simultaneously"""
+    try:
+        body = await request.json()
+        file_paths = body.get("file_paths", [])
+        preprocessing_options_data = body.get("preprocessing_options", {})
+        video_options_data = body.get("video_options", {})
+        
+        if not file_paths:
+            raise HTTPException(status_code=400, detail="file_paths is required")
+        
+        if len(file_paths) > 50:  # Limit for safety
+            raise HTTPException(status_code=400, detail="Too many files. Maximum 50 files per request.")
+        
+        preprocessing_options = PreprocessingOptions(**preprocessing_options_data)
+        video_options = VideoProcessingOptions(**video_options_data)
+        
+        # Categorize files by type
+        image_files = []
+        video_files = []
+        document_files = []
+        unsupported_files = []
+        
+        for file_path in file_paths:
+            if not os.path.exists(file_path):
+                logger.warning(f"File not found: {file_path}")
+                continue
+                
+            file_ext = Path(file_path).suffix.lower()
+            if file_ext in SUPPORTED_IMAGE_FORMATS:
+                image_files.append(file_path)
+            elif file_ext in SUPPORTED_VIDEO_FORMATS:
+                video_files.append(file_path)
+            elif file_ext in SUPPORTED_DOCUMENT_FORMATS:
+                document_files.append(file_path)
+            else:
+                unsupported_files.append(file_path)
+        
+        # Process files concurrently by type
+        start_time = time.time()
+        results = {
+            "image_results": [],
+            "video_results": [],
+            "document_results": [],
+            "unsupported_files": unsupported_files,
+            "summary": {}
+        }
+        
+        # Process images in batch
+        if image_files:
+            logger.info(f"Processing {len(image_files)} image files")
+            for file_path in image_files:
+                try:
+                    result = await perform_ocr_on_image(file_path, preprocessing_options)
+                    results["image_results"].append({
+                        "file_path": file_path,
+                        "result": result.model_dump()
+                    })
+                except Exception as e:
+                    logger.error(f"Failed to process image {file_path}: {e}")
+                    results["image_results"].append({
+                        "file_path": file_path,
+                        "error": str(e)
+                    })
+        
+        # Process documents
+        if document_files:
+            logger.info(f"Processing {len(document_files)} document files")
+            for file_path in document_files:
+                try:
+                    result = extract_text_from_document_enhanced(file_path)
+                    results["document_results"].append({
+                        "file_path": file_path,
+                        "result": result.model_dump()
+                    })
+                except Exception as e:
+                    logger.error(f"Failed to process document {file_path}: {e}")
+                    results["document_results"].append({
+                        "file_path": file_path,
+                        "error": str(e)
+                    })
+        
+        # Process videos (simplified for multi-file processing)
+        if video_files:
+            logger.info(f"Processing {len(video_files)} video files")
+            for file_path in video_files:
+                try:
+                    # Use simpler video processing for multi-file requests
+                    frame_paths = extract_video_frames_optimized(file_path, video_options)
+                    if frame_paths:
+                        # Process only first few frames for quick results
+                        sample_frames = frame_paths[:5]  # Limit to 5 frames
+                        frame_results = await process_frame_batch_parallel(sample_frames, preprocessing_options)
+                        
+                        # Clean up frames
+                        for frame_path in frame_paths:
+                            try:
+                                os.unlink(frame_path)
+                            except:
+                                pass
+                        
+                        # Extract text from frame results
+                        all_texts = [r["text"] for r in frame_results if r["text"]]
+                        unique_texts = deduplicate_texts_optimized(all_texts, video_options.similarity_threshold)
+                        combined_text = "\n".join(unique_texts)
+                        
+                        results["video_results"].append({
+                            "file_path": file_path,
+                            "result": {
+                                "text": combined_text,
+                                "frames_processed": len(sample_frames),
+                                "frames_with_text": len(frame_results),
+                                "unique_segments": len(unique_texts)
+                            }
+                        })
+                    else:
+                        results["video_results"].append({
+                            "file_path": file_path,
+                            "error": "No frames could be extracted"
+                        })
+                        
+                except Exception as e:
+                    logger.error(f"Failed to process video {file_path}: {e}")
+                    results["video_results"].append({
+                        "file_path": file_path,
+                        "error": str(e)
+                    })
+        
+        processing_time = time.time() - start_time
+        
+        # Generate summary
+        results["summary"] = {
+            "total_files": len(file_paths),
+            "images_processed": len([r for r in results["image_results"] if "result" in r]),
+            "videos_processed": len([r for r in results["video_results"] if "result" in r]),
+            "documents_processed": len([r for r in results["document_results"] if "result" in r]),
+            "unsupported_files": len(unsupported_files),
+            "total_processing_time": processing_time,
+            "files_with_errors": len([r for r in results["image_results"] + results["video_results"] + results["document_results"] if "error" in r])
+        }
+        
+        # Update metrics
+        update_performance_metrics("request")
+        update_performance_metrics("processing_time", processing_time)
+        
+        logger.info(f"Multi-file processing completed: {results['summary']}")
+        return results
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Multi-file processing error: {e}")
+        raise HTTPException(status_code=500, detail=f"Multi-file processing failed: {str(e)}")
 
 @app.post("/ocr/video", response_model=Dict[str, Any])
 async def process_video_ocr(request: Request):
@@ -1250,7 +1272,7 @@ async def process_video_ocr(request: Request):
         start_time = datetime.now()
 
         # Extract frames from video
-        frame_paths = extract_video_frames(file_path, video_options)
+        frame_paths = extract_video_frames_optimized(file_path, video_options)
 
         if not frame_paths:
             raise HTTPException(status_code=400, detail="No frames could be extracted from video")
@@ -1270,7 +1292,7 @@ async def process_video_ocr(request: Request):
             logger.debug(f"Processing batch {batch_idx // batch_size + 1}/{total_batches}")
 
             # Process batch in parallel
-            batch_results = process_frame_batch(batch_paths, preprocessing_options)
+            batch_results = await process_frame_batch_parallel(batch_paths, preprocessing_options)
 
             # Filter results by confidence and collect texts
             for result in batch_results:
@@ -1306,7 +1328,7 @@ async def process_video_ocr(request: Request):
                 logger.warning(f"Failed to clean up frame directory: {e}")
         
         # Deduplicate texts
-        unique_texts = deduplicate_texts(all_texts, video_options.similarity_threshold)
+        unique_texts = deduplicate_texts_optimized(all_texts, video_options.similarity_threshold)
         
         # Combine all unique texts
         combined_text = "\n".join(unique_texts)
@@ -1497,42 +1519,53 @@ async def process_batch_ocr(request: BatchOCRRequest):
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
-# Document processing functions
-def extract_text_from_pdf(file_path: str) -> str:
-    """Extract text from PDF using pypdfium2"""
+# Enhanced document processing functions
+def extract_text_from_pdf_enhanced(file_path: str) -> str:
+    """Enhanced PDF text extraction with better error handling"""
     try:
         pypdfium2 = get_pypdfium2()
         pdf = pypdfium2.PdfDocument(file_path)
         text_parts = []
-
-        for page in pdf:
-            textpage = page.get_textpage()
-            text = textpage.get_text_range()
-            if text.strip():
-                text_parts.append(text.strip())
-
+        
+        for page_num, page in enumerate(pdf):
+            try:
+                textpage = page.get_textpage()
+                text = textpage.get_text_range()
+                if text.strip():
+                    text_parts.append(f"--- Page {page_num + 1} ---\n{text.strip()}")
+            except Exception as e:
+                logger.warning(f"Failed to extract text from page {page_num + 1}: {e}")
+                continue
+        
         pdf.close()
         return "\n\n".join(text_parts)
     except Exception as e:
-        raise RuntimeError(f"Failed to extract text from PDF: {str(e)}")
+        raise RuntimeError(f"Enhanced PDF extraction failed: {str(e)}")
 
-def extract_text_from_docx(file_path: str) -> str:
-    """Extract text from DOCX using docx2txt"""
+def extract_text_from_docx_enhanced(file_path: str) -> str:
+    """Enhanced DOCX text extraction"""
     try:
         docx2txt = get_docx2txt()
         text = docx2txt.process(file_path)
         return text.strip() if text else ""
     except Exception as e:
-        raise RuntimeError(f"Failed to extract text from DOCX: {str(e)}")
+        raise RuntimeError(f"Enhanced DOCX extraction failed: {str(e)}")
 
-def extract_text_from_txt(file_path: str) -> str:
-    """Extract text from TXT file"""
+def extract_text_from_txt_enhanced(file_path: str) -> str:
+    """Enhanced TXT file extraction with encoding detection"""
     try:
-        with open(file_path, 'r', encoding='utf-8') as file:
+        # Try to detect encoding
+        import chardet
+        with open(file_path, 'rb') as file:
+            raw_data = file.read()
+            encoding_result = chardet.detect(raw_data)
+            encoding = encoding_result['encoding'] or 'utf-8'
+        
+        with open(file_path, 'r', encoding=encoding) as file:
             return file.read().strip()
-    except UnicodeDecodeError:
-        # Try with different encodings
-        for encoding in ['latin-1', 'cp1252', 'iso-8859-1']:
+    except ImportError:
+        # Fallback without chardet
+        for encoding in ['utf-8', 'latin-1', 'cp1252', 'iso-8859-1']:
             try:
                 with open(file_path, 'r', encoding=encoding) as file:
                     return file.read().strip()
@@ -1540,10 +1573,10 @@ def extract_text_from_txt(file_path: str) -> str:
                 continue
         raise RuntimeError("Failed to decode text file with any supported encoding")
     except Exception as e:
-        raise RuntimeError(f"Failed to read text file: {str(e)}")
+        raise RuntimeError(f"Enhanced TXT extraction failed: {str(e)}")
 
-def extract_text_from_rtf(file_path: str) -> str:
-    """Extract text from RTF using striprtf"""
+def extract_text_from_rtf_enhanced(file_path: str) -> str:
+    """Enhanced RTF text extraction"""
     try:
         with open(file_path, 'r', encoding='utf-8') as file:
             rtf_content = file.read()
@@ -1551,112 +1584,98 @@ def extract_text_from_rtf(file_path: str) -> str:
         text = rtf_to_text(rtf_content)
         return text.strip() if text else ""
     except Exception as e:
-        raise RuntimeError(f"Failed to extract text from RTF: {str(e)}")
+        raise RuntimeError(f"Enhanced RTF extraction failed: {str(e)}")
 
-def extract_text_from_document(file_path: str) -> DocumentExtractionResult:
-    """Extract text from various document formats"""
+def extract_text_from_document_enhanced(file_path: str) -> DocumentExtractionResult:
+    """Enhanced document text extraction with better metadata"""
     start_time = time.time()
-
+    
     try:
-        # Validate file exists
         if not os.path.exists(file_path):
             return DocumentExtractionResult(
-                text="",
-                file_path=file_path,
-                file_type="unknown",
-                processing_time=time.time() - start_time,
-                success=False,
+                text="", file_path=file_path, file_type="unknown",
+                processing_time=time.time() - start_time, success=False,
                 error_message="File not found"
             )
-
-        # Get file extension
+        
         file_extension = Path(file_path).suffix.lower()
-
-        # Extract text based on file type
         text = ""
+        
+        # Enhanced extraction based on file type
         if file_extension == '.pdf':
-            text = extract_text_from_pdf(file_path)
+            text = extract_text_from_pdf_enhanced(file_path)
             file_type = "pdf"
-        elif file_extension == '.docx':
-            text = extract_text_from_docx(file_path)
+        elif file_extension in ['.docx', '.doc']:
+            text = extract_text_from_docx_enhanced(file_path)
             file_type = "docx"
         elif file_extension == '.txt':
-            text = extract_text_from_txt(file_path)
+            text = extract_text_from_txt_enhanced(file_path)
             file_type = "txt"
         elif file_extension == '.rtf':
-            text = extract_text_from_rtf(file_path)
+            text = extract_text_from_rtf_enhanced(file_path)
             file_type = "rtf"
         else:
             return DocumentExtractionResult(
-                text="",
-                file_path=file_path,
-                file_type=file_extension.lstrip('.'),
-                processing_time=time.time() - start_time,
-                success=False,
+                text="", file_path=file_path, file_type=file_extension.lstrip('.'),
+                processing_time=time.time() - start_time, success=False,
                 error_message=f"Unsupported document format: {file_extension}"
             )
-
+        
         processing_time = time.time() - start_time
-
-        # Get file metadata
+        
+        # Enhanced metadata
         file_stat = os.stat(file_path)
+        word_count = len(text.split()) if text else 0
+        line_count = len(text.splitlines()) if text else 0
+        
         metadata = {
             "file_size": file_stat.st_size,
             "last_modified": datetime.fromtimestamp(file_stat.st_mtime).isoformat(),
             "text_length": len(text),
-            "word_count": len(text.split()) if text else 0
+            "word_count": word_count,
+            "line_count": line_count,
+            "extraction_method": "enhanced",
+            "file_extension": file_extension
         }
-
+        
         return DocumentExtractionResult(
-            text=text,
-            file_path=file_path,
-            file_type=file_type,
-            processing_time=processing_time,
-            success=True,
-            metadata=metadata
+            text=text, file_path=file_path, file_type=file_type,
+            processing_time=processing_time, success=True, metadata=metadata
         )
-
+        
     except Exception as e:
         return DocumentExtractionResult(
-            text="",
-            file_path=file_path,
+            text="", file_path=file_path,
             file_type=Path(file_path).suffix.lower().lstrip('.'),
-            processing_time=time.time() - start_time,
-            success=False,
+            processing_time=time.time() - start_time, success=False,
             error_message=str(e)
         )
 
 # DocumentExtractionRequest moved to models.py
 
 @app.post("/extract/document", response_model=DocumentExtractionResult)
-async def extract_document_text(request: DocumentExtractionRequest):
-    """
-    Extract text from various document formats (PDF, DOCX, TXT, RTF)
-    """
+async def extract_document_text_enhanced(request: DocumentExtractionRequest):
+    """Enhanced document text extraction endpoint"""
     try:
-        logger.info(f"Processing document extraction for: {request.file_path}")
-
-        # Update metrics
+        logger.info(f"Enhanced document extraction for: {request.file_path}")
+        
         update_performance_metrics("request")
-
-        # Perform document text extraction
-        result = extract_text_from_document(request.file_path)
-
-        # Update metrics
+        result = extract_text_from_document_enhanced(request.file_path)
         update_performance_metrics("processing_time", result.processing_time)
-
+        
         if result.success:
+            update_performance_metrics("document_processed")
             logger.info(f"Successfully extracted {len(result.text)} characters from {request.file_path}")
         else:
-            logger.warning(f"Failed to extract text from {request.file_path}: {result.error_message}")
             update_performance_metrics("error")
-
+            logger.warning(f"Document extraction failed: {result.error_message}")
+        
         return result
-
+        
     except Exception as e:
-        logger.error(f"Unexpected error in document extraction: {e}")
+        logger.error(f"Enhanced document extraction error: {e}")
         update_performance_metrics("error")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Document processing failed: {str(e)}")
 
 @app.get("/health")
 async def health_check(request: Request):
@@ -1690,29 +1709,6 @@ async def network_info(request: Request):
     import socket
 
     interfaces = []
-
-    try:
-        # Try to use netifaces if available
-        import netifaces
-
-        # Get all network interfaces
-        for interface in netifaces.interfaces():
-            try:
-                addrs = netifaces.ifaddresses(interface)
-                if netifaces.AF_INET in addrs:
-                    for addr in addrs[netifaces.AF_INET]:
-                        if addr['addr'] != '127.0.0.1':
-                            interfaces.append({
-                                "interface": interface,
-                                "ip": addr['addr'],
-                                "netmask": addr.get('netmask', 'unknown')
-                            })
-            except Exception:
-                continue
-
-    except ImportError:
-        # Fallback if netifaces is not available
-        logger.debug("netifaces not available, using fallback network detection")
 
     # Fallback method if netifaces failed or is not available
     if not interfaces:
@@ -1752,12 +1748,24 @@ async def network_info(request: Request):
     }
 
 @app.get("/supported_formats")
-async def get_supported_formats():
-    """Get supported file formats"""
+async def get_supported_formats_enhanced():
+    """Enhanced supported formats endpoint"""
     return {
         "image_formats": SUPPORTED_IMAGE_FORMATS,
         "video_formats": SUPPORTED_VIDEO_FORMATS,
-        "document_formats": SUPPORTED_DOCUMENT_FORMATS
+        "document_formats": SUPPORTED_DOCUMENT_FORMATS,
+        "max_file_size_mb": MAX_FILE_SIZE / (1024 * 1024),
+        "capabilities": {
+            "image_ocr": True,
+            "video_ocr": True,
+            "batch_processing": True,
+            "document_extraction": True,
+            "text_preprocessing": True,
+            "similarity_detection": True,
+            "caching": True,
+            "parallel_processing": True,
+            "multi_file_processing": True
+        }
     }
 
 @app.get("/metrics")

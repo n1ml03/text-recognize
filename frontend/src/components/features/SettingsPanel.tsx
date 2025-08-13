@@ -1,20 +1,25 @@
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Settings,
-  Keyboard,
-  Eye,
-  Globe,
+  Palette,
+  Zap,
+  Shield,
   Save,
   RotateCcw,
   Monitor,
   Moon,
-  Sun
-} from 'lucide-react';
+  Sun,
+  X,
+  Eye,
+  Cpu,
+  HardDrive,
+  Image,
+  FileText} from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import { useUIState } from '@/store/app-store';
-import { formatShortcut, getShortcutCategories } from '@/hooks/useKeyboardShortcuts';
+import { useUIState, useAppStore } from '@/store/app-store';
 
 interface SettingsPanelProps {
   onClose: () => void;
@@ -22,372 +27,566 @@ interface SettingsPanelProps {
 
 export function SettingsPanel({ onClose }: SettingsPanelProps) {
   const { theme, setTheme } = useUIState();
-  const [activeTab, setActiveTab] = useState<'general' | 'shortcuts' | 'ocr' | 'grammar'>('general');
+  const { setError } = useAppStore();
+  const [activeTab, setActiveTab] = useState<'appearance' | 'performance' | 'ocr' | 'privacy'>('appearance');
+  const [settings, setSettings] = useState({
+    // Appearance
+    enableAnimations: true,
+    compactMode: false,
+    showPreviewImages: true,
+    
+    // Performance
+    hardwareAcceleration: true,
+    autoSave: true,
+    maxConcurrentFiles: 3,
+    cacheResults: true,
+    
+    // OCR
+    autoEnhanceContrast: true,
+    denoiseImages: true,
+    ocrLanguage: 'en',
+    ocrEngine: 'auto',
+    
+    // Privacy
+    saveHistory: true,
+    analyticsOptOut: false,
+    clearCacheOnExit: false,
+  });
 
   const tabs = [
-    { id: 'general' as const, label: 'General', icon: Settings },
-    { id: 'shortcuts' as const, label: 'Shortcuts', icon: Keyboard },
-    { id: 'ocr' as const, label: 'OCR', icon: Eye },
-    { id: 'grammar' as const, label: 'Grammar', icon: Globe },
+    { 
+      id: 'appearance' as const, 
+      label: 'Appearance', 
+      icon: Palette,
+      description: 'Themes and visual preferences'
+    },
+    { 
+      id: 'performance' as const, 
+      label: 'Performance', 
+      icon: Zap,
+      description: 'Speed and processing options'
+    },
+    { 
+      id: 'ocr' as const, 
+      label: 'OCR Settings', 
+      icon: Eye,
+      description: 'Text recognition configuration'
+    },
+    { 
+      id: 'privacy' as const, 
+      label: 'Privacy', 
+      icon: Shield,
+      description: 'Data and privacy settings'
+    },
   ];
 
   const themeOptions = [
-    { value: 'light' as const, label: 'Light', icon: Sun },
-    { value: 'dark' as const, label: 'Dark', icon: Moon },
-    { value: 'system' as const, label: 'System', icon: Monitor },
+    { value: 'light' as const, label: 'Light', icon: Sun, description: 'Clean and bright interface' },
+    { value: 'dark' as const, label: 'Dark', icon: Moon, description: 'Easy on the eyes' },
+    { value: 'system' as const, label: 'System', icon: Monitor, description: 'Follow system preference' },
   ];
 
+  const updateSetting = (key: string, value: any) => {
+    setSettings(prev => ({ ...prev, [key]: value }));
+  };
+
+  const handleSave = () => {
+    // Here you would save settings to localStorage or backend
+    try {
+      localStorage.setItem('app-settings', JSON.stringify(settings));
+      console.log('Settings saved successfully');
+      onClose();
+    } catch (error) {
+      setError('Failed to save settings');
+    }
+  };
+
+  const handleReset = () => {
+    setSettings({
+      enableAnimations: true,
+      compactMode: false,
+      showPreviewImages: true,
+      hardwareAcceleration: true,
+      autoSave: true,
+      maxConcurrentFiles: 3,
+      cacheResults: true,
+      autoEnhanceContrast: true,
+      denoiseImages: true,
+      ocrLanguage: 'en',
+      ocrEngine: 'auto',
+      saveHistory: true,
+      analyticsOptOut: false,
+      clearCacheOnExit: false,
+    });
+    setTheme('system');
+  };
+
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-50"
-      onClick={onClose}
-    >
+    <AnimatePresence>
       <motion.div
-        initial={{ scale: 0.9, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        exit={{ scale: 0.9, opacity: 0 }}
-        className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/90 border border-border rounded-lg shadow-lg w-full max-w-5xl max-h-[90vh] overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+        onClick={onClose}
       >
-        <div className="flex h-full min-h-0">
-          {/* Sidebar */}
-          <div className="w-64 border-r border-border/50 bg-card/50 flex-shrink-0">
-            <div className="p-4 border-b border-border/50">
-              <h2 className="text-lg font-semibold flex items-center gap-2 text-foreground">
-                <Settings className="h-5 w-5" />
-                Settings
-              </h2>
-            </div>
-            <nav className="p-2 space-y-1">
-              {tabs.map((tab) => {
-                const Icon = tab.icon;
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`w-full flex items-center gap-3 px-3 py-3 rounded-md text-left transition-all duration-200 ${
-                      activeTab === tab.id
-                        ? 'bg-primary text-primary-foreground shadow-sm'
-                        : 'hover:bg-muted text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    <Icon className="h-4 w-4" />
-                    <span className="font-medium">{tab.label}</span>
-                  </button>
-                );
-              })}
-            </nav>
-          </div>
-
-          {/* Content */}
-          <div className="flex-1 overflow-hidden bg-background/50 min-w-0">
-            <div className="h-full overflow-y-auto">
-              <div className="p-6">
-                {activeTab === 'general' && <GeneralSettings theme={theme} setTheme={setTheme} themeOptions={themeOptions} />}
-                {activeTab === 'shortcuts' && <ShortcutsSettings />}
-                {activeTab === 'ocr' && <OCRSettings />}
-                {activeTab === 'grammar' && <GrammarSettings />}
+        <motion.div
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          exit={{ scale: 0.9, opacity: 0 }}
+          className="bg-background border rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="border-b bg-gradient-to-r from-primary/5 to-primary/10 p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-primary/10 rounded-lg">
+                  <Settings className="h-6 w-6 text-primary" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold">Settings</h2>
+                  <p className="text-sm text-muted-foreground">Customize your experience</p>
+                </div>
               </div>
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={onClose}
+                  className="h-10 w-10 rounded-lg"
+                >
+                  <X className="h-5 w-5" />
+                </Button>
+              </motion.div>
             </div>
           </div>
-        </div>
 
-        {/* Footer */}
-        <div className="border-t border-border/50 bg-card/30 p-4 flex justify-between">
-          <Button variant="outline" onClick={onClose}>
-            Cancel
-          </Button>
-          <div className="flex gap-2">
-            <Button variant="outline">
-              <RotateCcw className="h-4 w-4 mr-2" />
-              Reset to Defaults
-            </Button>
-            <Button onClick={onClose}>
-              <Save className="h-4 w-4 mr-2" />
-              Save Changes
-            </Button>
+          <div className="flex h-[calc(90vh-200px)]">
+            {/* Sidebar */}
+            <div className="w-64 border-r bg-muted/30 p-4">
+              <nav className="space-y-2">
+                {tabs.map((tab) => {
+                  const Icon = tab.icon;
+                  const isActive = activeTab === tab.id;
+                  
+                  return (
+                    <motion.button
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id)}
+                      className={`w-full flex items-start gap-3 p-3 rounded-lg text-left transition-all duration-200 ${
+                        isActive
+                          ? 'bg-primary text-primary-foreground shadow-md'
+                          : 'hover:bg-muted/50 text-muted-foreground hover:text-foreground'
+                      }`}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                    >
+                      <Icon className="h-5 w-5 mt-0.5 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <div className="font-medium">{tab.label}</div>
+                        <div className={`text-xs mt-0.5 ${isActive ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}>
+                          {tab.description}
+                        </div>
+                      </div>
+                    </motion.button>
+                  );
+                })}
+              </nav>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-6">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={activeTab}
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  {activeTab === 'appearance' && (
+                    <AppearanceSettings 
+                      theme={theme} 
+                      setTheme={setTheme} 
+                      themeOptions={themeOptions}
+                      settings={settings}
+                      updateSetting={updateSetting}
+                    />
+                  )}
+                  {activeTab === 'performance' && (
+                    <PerformanceSettings 
+                      settings={settings}
+                      updateSetting={updateSetting}
+                    />
+                  )}
+                  {activeTab === 'ocr' && (
+                    <OCRSettings 
+                      settings={settings}
+                      updateSetting={updateSetting}
+                    />
+                  )}
+                  {activeTab === 'privacy' && (
+                    <PrivacySettings 
+                      settings={settings}
+                      updateSetting={updateSetting}
+                    />
+                  )}
+                </motion.div>
+              </AnimatePresence>
+            </div>
           </div>
-        </div>
+
+          {/* Footer */}
+          <div className="border-t bg-muted/20 p-4 flex justify-between">
+            <motion.div
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              <Button variant="outline" onClick={handleReset}>
+                <RotateCcw className="h-4 w-4 mr-2" />
+                Reset to Defaults
+              </Button>
+            </motion.div>
+            <div className="flex gap-2">
+              <motion.div
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                <Button variant="outline" onClick={onClose}>
+                  Cancel
+                </Button>
+              </motion.div>
+              <motion.div
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                <Button onClick={handleSave}>
+                  <Save className="h-4 w-4 mr-2" />
+                  Save Changes
+                </Button>
+              </motion.div>
+            </div>
+          </div>
+        </motion.div>
       </motion.div>
-    </motion.div>
+    </AnimatePresence>
   );
 }
 
-function GeneralSettings({ theme, setTheme, themeOptions }: {
+function AppearanceSettings({ 
+  theme, 
+  setTheme, 
+  themeOptions, 
+  settings, 
+  updateSetting 
+}: {
   theme: string;
   setTheme: (theme: 'light' | 'dark' | 'system') => void;
-  themeOptions: Array<{ value: 'light' | 'dark' | 'system'; label: string; icon: React.ComponentType<{ className?: string }> }>;
+  themeOptions: Array<{ value: 'light' | 'dark' | 'system'; label: string; icon: React.ComponentType<{ className?: string }>; description: string }>;
+  settings: any;
+  updateSetting: (key: string, value: any) => void;
 }) {
   return (
-    <div className="max-h-[calc(90vh-200px)] overflow-y-auto pr-2">
-      <div className="sticky top-0 bg-background/95 backdrop-blur-sm pb-4 mb-6 border-b border-border/30 z-10">
-        <h3 className="text-xl font-bold mb-2 flex items-center gap-2 text-foreground">
-          <Monitor className="h-6 w-6 text-primary" />
-          Appearance
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-xl font-bold mb-2 flex items-center gap-2">
+          <Palette className="h-5 w-5 text-primary" />
+          Appearance & Theme
         </h3>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-muted-foreground mb-6">
           Customize the look and feel of the application
         </p>
       </div>
-      
-      <div className="space-y-8">
-        <div className="bg-card rounded-lg border p-6">
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium mb-3 block">Theme Selection</label>
-              <div className="grid grid-cols-3 gap-3">
-              {themeOptions.map((option) => {
-                const Icon = option.icon;
-                const isSelected = theme === option.value;
-                return (
-                  <button
-                    key={option.value}
-                    onClick={() => setTheme(option.value)}
-                    className={`flex flex-col items-center gap-3 p-4 rounded-lg border-2 transition-all duration-200 ${
-                      isSelected
-                        ? 'border-primary bg-primary/5 text-primary shadow-sm'
-                        : 'border-border hover:bg-muted/50 hover:border-muted-foreground/30'
-                    }`}
-                  >
-                    <Icon className="h-6 w-6" />
-                    <span className="text-sm font-medium">{option.label}</span>
-                    {isSelected && (
-                      <div className="w-2 bg-primary rounded-full"></div>
-                    )}
-                  </button>
-                );
-              })}
-              </div>
-            </div>
-          </div>
-        </div>
 
-        <div className="bg-card rounded-lg border p-6">
-          <h4 className="text-lg font-semibold mb-2 flex items-center gap-2">
-            <Settings className="h-5 w-5 text-primary" />
-            Performance
-          </h4>
-          <p className="text-sm text-muted-foreground mb-6">
-            Configure performance and behavior settings
-          </p>
-          <div className="space-y-4">
-            <label className="flex items-center gap-3 cursor-pointer p-3 rounded-md hover:bg-muted/30 transition-colors">
-              <Checkbox defaultChecked />
-              <div className="flex flex-col">
-                <span className="text-sm font-medium">Enable hardware acceleration</span>
-                <span className="text-xs text-muted-foreground">Use GPU for faster processing</span>
-              </div>
-            </label>
-            <label className="flex items-center gap-3 cursor-pointer p-3 rounded-md hover:bg-muted/30 transition-colors">
-              <Checkbox defaultChecked />
-              <div className="flex flex-col">
-                <span className="text-sm font-medium">Auto-save progress</span>
-                <span className="text-xs text-muted-foreground">Automatically save your work</span>
-              </div>
-            </label>
-            <label className="flex items-center gap-3 cursor-pointer p-3 rounded-md hover:bg-muted/30 transition-colors">
-              <Checkbox />
-              <div className="flex flex-col">
-                <span className="text-sm font-medium">Reduce animations</span>
-                <span className="text-xs text-muted-foreground">Improve performance on slower devices</span>
-              </div>
-            </label>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Theme Selection</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-3 gap-4">
+            {themeOptions.map((option) => {
+              const Icon = option.icon;
+              const isSelected = theme === option.value;
+              
+              return (
+                <motion.button
+                  key={option.value}
+                  onClick={() => setTheme(option.value)}
+                  className={`flex flex-col items-center gap-3 p-4 rounded-lg border-2 transition-all duration-200 ${
+                    isSelected
+                      ? 'border-primary bg-primary/10 text-primary shadow-sm'
+                      : 'border-border hover:bg-muted/50 hover:border-muted-foreground/50'
+                  }`}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <Icon className="h-8 w-8" />
+                  <div className="text-center">
+                    <div className="font-medium">{option.label}</div>
+                    <div className="text-xs text-muted-foreground mt-1">{option.description}</div>
+                  </div>
+                  {isSelected && (
+                    <motion.div
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      className="w-2 h-2 bg-primary rounded-full"
+                    />
+                  )}
+                </motion.button>
+              );
+            })}
           </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Interface Options</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <SettingToggle
+            checked={settings.enableAnimations}
+            onChange={(checked) => updateSetting('enableAnimations', checked)}
+            title="Enable Animations"
+            description="Smooth transitions and micro-interactions"
+            icon={<Zap className="h-4 w-4" />}
+          />
+          <SettingToggle
+            checked={settings.compactMode}
+            onChange={(checked) => updateSetting('compactMode', checked)}
+            title="Compact Mode"
+            description="Reduce spacing and padding for more content"
+            icon={<Monitor className="h-4 w-4" />}
+          />
+          <SettingToggle
+            checked={settings.showPreviewImages}
+            onChange={(checked) => updateSetting('showPreviewImages', checked)}
+            title="Show Image Previews"
+            description="Display thumbnails in file lists"
+            icon={<Image className="h-4 w-4" />}
+          />
+        </CardContent>
+      </Card>
     </div>
   );
 }
 
-function ShortcutsSettings() {
-  const shortcutCategories = Object.entries(getShortcutCategories());
-
+function PerformanceSettings({ settings, updateSetting }: { settings: any; updateSetting: (key: string, value: any) => void }) {
   return (
-    <div className="max-h-[calc(90vh-200px)] overflow-y-auto pr-2">
-      <div className="sticky top-0 bg-background/95 backdrop-blur-sm pb-4 mb-6 border-b border-border/30 z-10">
-        <h3 className="text-xl font-bold mb-2 flex items-center gap-2 text-foreground">
-          <Keyboard className="h-6 w-6 text-primary" />
-          Keyboard Shortcuts
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-xl font-bold mb-2 flex items-center gap-2">
+          <Zap className="h-5 w-5 text-primary" />
+          Performance & Processing
         </h3>
-        <p className="text-sm text-muted-foreground">
-          Customize keyboard shortcuts to improve your workflow.
+        <p className="text-sm text-muted-foreground mb-6">
+          Optimize speed and resource usage
         </p>
       </div>
 
-      <div className="space-y-4">
-        {shortcutCategories.map(([category, shortcuts]) => (
-          <div key={category} className="bg-card rounded-lg border overflow-hidden">
-            <div className="bg-primary/5 px-4 py-3 border-b border-border/30">
-              <h4 className="font-semibold text-primary text-sm">{category}</h4>
-            </div>
-            <div className="divide-y divide-border/30">
-              {shortcuts.map((shortcut) => (
-                <div key={shortcut.shortcutKey} className="flex items-center justify-between p-3 hover:bg-muted/30 transition-colors">
-                  <div className="flex flex-col min-w-0 flex-1 mr-4">
-                    <span className="text-sm font-medium truncate">{shortcut.description}</span>
-                    <span className="text-xs text-muted-foreground">Press to execute</span>
-                  </div>
-                  <kbd className="px-2 py-1 bg-muted/80 border border-border/50 rounded text-xs font-mono text-muted-foreground shadow-sm whitespace-nowrap flex-shrink-0">
-                    {formatShortcut(shortcut)}
-                  </kbd>
-                </div>
-              ))}
-            </div>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">System Performance</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <SettingToggle
+            checked={settings.hardwareAcceleration}
+            onChange={(checked) => updateSetting('hardwareAcceleration', checked)}
+            title="Hardware Acceleration"
+            description="Use GPU for faster image processing"
+            icon={<Cpu className="h-4 w-4" />}
+          />
+          <SettingToggle
+            checked={settings.autoSave}
+            onChange={(checked) => updateSetting('autoSave', checked)}
+            title="Auto-save Progress"
+            description="Automatically save your work"
+            icon={<Save className="h-4 w-4" />}
+          />
+          <SettingToggle
+            checked={settings.cacheResults}
+            onChange={(checked) => updateSetting('cacheResults', checked)}
+            title="Cache OCR Results"
+            description="Store results to speed up re-processing"
+            icon={<HardDrive className="h-4 w-4" />}
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Processing Limits</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <label className="text-sm font-medium mb-2 block">Maximum Concurrent Files</label>
+            <select 
+              value={settings.maxConcurrentFiles}
+              onChange={(e) => updateSetting('maxConcurrentFiles', parseInt(e.target.value))}
+              className="w-full p-3 border rounded-lg bg-background"
+            >
+              <option value={1}>1 file (Slower, less memory)</option>
+              <option value={3}>3 files (Balanced)</option>
+              <option value={5}>5 files (Faster, more memory)</option>
+              <option value={10}>10 files (Maximum speed)</option>
+            </select>
+            <p className="text-xs text-muted-foreground mt-2">
+              Higher values use more memory but process faster
+            </p>
           </div>
-        ))}
-      </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
 
-function OCRSettings() {
+function OCRSettings({ settings, updateSetting }: { settings: any; updateSetting: (key: string, value: any) => void }) {
   return (
-    <div className="max-h-[calc(90vh-200px)] overflow-y-auto pr-2">
-      <div className="sticky top-0 bg-background/95 backdrop-blur-sm pb-4 mb-6 border-b border-border/30 z-10">
-        <h3 className="text-xl font-bold mb-2 flex items-center gap-2 text-foreground">
-          <Eye className="h-6 w-6 text-primary" />
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-xl font-bold mb-2 flex items-center gap-2">
+          <Eye className="h-5 w-5 text-primary" />
           OCR Configuration
         </h3>
-        <p className="text-sm text-muted-foreground">
-          Configure optical character recognition settings
+        <p className="text-sm text-muted-foreground mb-6">
+          Configure text recognition settings
         </p>
       </div>
-      
-      <div className="space-y-8">
-        <div className="bg-card rounded-lg border p-6">
-          <div className="space-y-6">
-            <div>
-              <label className="text-sm font-medium mb-3 block">Default OCR Engine</label>
-              <select className="w-full p-3 border border-border bg-card text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent transition-colors">
-                <option>Tesseract</option>
-                <option>PaddleOCR</option>
-                <option>Auto (Best Available)</option>
-              </select>
-              <p className="text-xs text-muted-foreground mt-2">Choose the OCR engine for text recognition</p>
-            </div>
-            
-            <div>
-              <label className="text-sm font-medium mb-3 block">Default Language</label>
-              <select className="w-full p-3 border border-border bg-card text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent transition-colors">
-                <option>English</option>
-                <option>Spanish</option>
-                <option>French</option>
-                <option>German</option>
-                <option>Auto-detect</option>
-              </select>
-              <p className="text-xs text-muted-foreground mt-2">Primary language for text recognition</p>
-            </div>
 
-            <div>
-              <label className="text-sm font-medium mb-3 block">Image Processing</label>
-              <div className="space-y-3">
-                <label className="flex items-center gap-3 cursor-pointer p-3 rounded-md hover:bg-muted/30 transition-colors">
-                  <Checkbox defaultChecked />
-                  <div className="flex flex-col">
-                    <span className="text-sm font-medium">Auto-enhance image contrast</span>
-                    <span className="text-xs text-muted-foreground">Improve text clarity automatically</span>
-                  </div>
-                </label>
-                <label className="flex items-center gap-3 cursor-pointer p-3 rounded-md hover:bg-muted/30 transition-colors">
-                  <Checkbox defaultChecked />
-                  <div className="flex flex-col">
-                    <span className="text-sm font-medium">Apply noise reduction</span>
-                    <span className="text-xs text-muted-foreground">Remove image artifacts and noise</span>
-                  </div>
-                </label>
-                <label className="flex items-center gap-3 cursor-pointer p-3 rounded-md hover:bg-muted/30 transition-colors">
-                  <Checkbox />
-                  <div className="flex flex-col">
-                    <span className="text-sm font-medium">Preserve original image</span>
-                    <span className="text-xs text-muted-foreground">Keep a copy of the original file</span>
-                  </div>
-                </label>
-              </div>
-            </div>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">OCR Engine</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <label className="text-sm font-medium mb-2 block">Primary OCR Engine</label>
+            <select 
+              value={settings.ocrEngine}
+              onChange={(e) => updateSetting('ocrEngine', e.target.value)}
+              className="w-full p-3 border rounded-lg bg-background"
+            >
+              <option value="paddleocr">PaddleOCR</option>
+            </select>
+            <p className="text-xs text-muted-foreground mt-2">
+              Auto mode selects the best engine for each file type
+            </p>
           </div>
-        </div>
-      </div>
+
+          <div>
+            <label className="text-sm font-medium mb-2 block">Default Language</label>
+            <select 
+              value={settings.ocrLanguage}
+              onChange={(e) => updateSetting('ocrLanguage', e.target.value)}
+              className="w-full p-3 border rounded-lg bg-background"
+            >
+              <option value="en">English</option>
+              <option value="es">Spanish</option>
+              <option value="fr">French</option>
+              <option value="de">German</option>
+              <option value="auto">Auto-detect</option>
+            </select>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Image Processing</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <SettingToggle
+            checked={settings.autoEnhanceContrast}
+            onChange={(checked) => updateSetting('autoEnhanceContrast', checked)}
+            title="Auto-enhance Contrast"
+            description="Automatically improve text clarity"
+            icon={<Image className="h-4 w-4" />}
+          />
+          <SettingToggle
+            checked={settings.denoiseImages}
+            onChange={(checked) => updateSetting('denoiseImages', checked)}
+            title="Noise Reduction"
+            description="Remove image artifacts for better recognition"
+            icon={<Eye className="h-4 w-4" />}
+          />
+        </CardContent>
+      </Card>
     </div>
   );
 }
 
-function GrammarSettings() {
+function PrivacySettings({ settings, updateSetting }: { settings: any; updateSetting: (key: string, value: any) => void }) {
   return (
-    <div className="max-h-[calc(90vh-200px)] overflow-y-auto pr-2">
-      <div className="sticky top-0 bg-background/95 backdrop-blur-sm pb-4 mb-6 border-b border-border/30 z-10">
-        <h3 className="text-xl font-bold mb-2 flex items-center gap-2 text-foreground">
-          <Globe className="h-6 w-6 text-primary" />
-          Grammar Checking
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-xl font-bold mb-2 flex items-center gap-2">
+          <Shield className="h-5 w-5 text-primary" />
+          Privacy & Data
         </h3>
-        <p className="text-sm text-muted-foreground">
-          Configure grammar and style checking preferences
+        <p className="text-sm text-muted-foreground mb-6">
+          Control how your data is handled
         </p>
       </div>
-      
-      <div className="space-y-8">
-        <div className="bg-card rounded-lg border p-6">
-          <div className="space-y-6">
-            <div>
-              <label className="text-sm font-medium mb-3 block">Grammar Provider</label>
-              <select className="w-full p-3 border border-border bg-card text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent transition-colors">
-                <option>Hybrid (Online + Offline)</option>
-                <option>LanguageTool (Online)</option>
-                <option>Offline Rules Only</option>
-              </select>
-              <p className="text-xs text-muted-foreground mt-2">Choose how grammar checking is performed</p>
-            </div>
-            
-            <div>
-              <label className="text-sm font-medium mb-3 block">Language</label>
-              <select className="w-full p-3 border border-border bg-card text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent transition-colors">
-                <option>English (US)</option>
-                <option>English (UK)</option>
-                <option>Spanish</option>
-                <option>French</option>
-                <option>German</option>
-              </select>
-              <p className="text-xs text-muted-foreground mt-2">Language variant for grammar rules</p>
-            </div>
 
-            <div>
-              <label className="text-sm font-medium mb-3 block">Checking Options</label>
-              <div className="space-y-3">
-                <label className="flex items-center gap-3 cursor-pointer p-3 rounded-md hover:bg-muted/30 transition-colors">
-                  <Checkbox defaultChecked />
-                  <div className="flex flex-col">
-                    <span className="text-sm font-medium">Enable style suggestions</span>
-                    <span className="text-xs text-muted-foreground">Get recommendations for better writing style</span>
-                  </div>
-                </label>
-                <label className="flex items-center gap-3 cursor-pointer p-3 rounded-md hover:bg-muted/30 transition-colors">
-                  <Checkbox />
-                  <div className="flex flex-col">
-                    <span className="text-sm font-medium">Enable picky rules</span>
-                    <span className="text-xs text-muted-foreground">Apply strict grammar and style rules</span>
-                  </div>
-                </label>
-                <label className="flex items-center gap-3 cursor-pointer p-3 rounded-md hover:bg-muted/30 transition-colors">
-                  <Checkbox defaultChecked />
-                  <div className="flex flex-col">
-                    <span className="text-sm font-medium">Auto-correct common mistakes</span>
-                    <span className="text-xs text-muted-foreground">Automatically fix obvious errors</span>
-                  </div>
-                </label>
-                <label className="flex items-center gap-3 cursor-pointer p-3 rounded-md hover:bg-muted/30 transition-colors">
-                  <Checkbox defaultChecked />
-                  <div className="flex flex-col">
-                    <span className="text-sm font-medium">Offline fallback</span>
-                    <span className="text-xs text-muted-foreground">Use offline grammar checking when online is unavailable</span>
-                  </div>
-                </label>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Data Storage</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <SettingToggle
+            checked={settings.saveHistory}
+            onChange={(checked) => updateSetting('saveHistory', checked)}
+            title="Save Processing History"
+            description="Keep records of processed files and results"
+            icon={<FileText className="h-4 w-4" />}
+          />
+          <SettingToggle
+            checked={settings.clearCacheOnExit}
+            onChange={(checked) => updateSetting('clearCacheOnExit', checked)}
+            title="Clear Cache on Exit"
+            description="Remove temporary files when closing the app"
+            icon={<HardDrive className="h-4 w-4" />}
+          />
+        </CardContent>
+      </Card>
     </div>
+  );
+}
+
+function SettingToggle({
+  checked,
+  onChange,
+  title,
+  description,
+  icon
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  title: string;
+  description: string;
+  icon: React.ReactNode;
+}) {
+  return (
+    <motion.label 
+      className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-muted/30 transition-colors group"
+      whileHover={{ scale: 1.01 }}
+      whileTap={{ scale: 0.99 }}
+    >
+      <Checkbox 
+        checked={checked}
+        onCheckedChange={onChange}
+        className="mt-1"
+      />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-1">
+          {icon}
+          <span className="font-medium group-hover:text-primary transition-colors">{title}</span>
+        </div>
+        <p className="text-sm text-muted-foreground leading-relaxed">{description}</p>
+      </div>
+    </motion.label>
   );
 }

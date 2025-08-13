@@ -402,63 +402,95 @@ export function ExportHistoryPanel() {
             )}
           </AnimatePresence>
 
-          {/* Basic Search and Filters */}
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          {/* Enhanced Search and Filters with Micro-interactions */}
+          <motion.div 
+            className="flex flex-col sm:flex-row gap-4"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+          >
+            <motion.div 
+              className="flex-1 relative"
+              whileHover={{ scale: 1.01 }}
+              transition={{ duration: 0.2 }}
+            >
+              <motion.div
+                animate={searchTerm ? { scale: 1.1, color: '#3b82f6' } : { scale: 1 }}
+                transition={{ duration: 0.2 }}
+              >
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              </motion.div>
               <input
                 type="text"
-                placeholder="Search exports, tags, notes..."
+                placeholder="🔍 Search exports, tags, notes..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border rounded-md"
+                className="w-full pl-10 pr-4 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 hover:border-blue-300"
               />
-            </div>
+              {searchTerm && (
+                <motion.button
+                  initial={{ opacity: 0, scale: 0 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  ✕
+                </motion.button>
+              )}
+            </motion.div>
             
             <div className="flex gap-2">
-              <select
-                value={filterType}
-                onChange={(e) => setFilterType(e.target.value as any)}
-                className="px-3 py-2 border rounded-md"
-              >
-                <option value="all">All Types</option>
-                <option value="csv">CSV</option>
-                <option value="txt">Text</option>
-                <option value="json">JSON</option>
-              </select>
+              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                <select
+                  value={filterType}
+                  onChange={(e) => setFilterType(e.target.value as any)}
+                  className="px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 hover:border-blue-300"
+                >
+                  <option value="all">📁 All Types</option>
+                  <option value="csv">📊 CSV</option>
+                  <option value="txt">📄 Text</option>
+                  <option value="json">🔧 JSON</option>
+                </select>
+              </motion.div>
               
-              <select
-                value={sourceFilter}
-                onChange={(e) => setSourceFilter(e.target.value as any)}
-                className="px-3 py-2 border rounded-md"
-              >
-                <option value="all">All Sources</option>
-                <option value="single">Single Files</option>
-                <option value="batch">Batch Processing</option>
-              </select>
+              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                <select
+                  value={sourceFilter}
+                  onChange={(e) => setSourceFilter(e.target.value as any)}
+                  className="px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 hover:border-blue-300"
+                >
+                  <option value="all">🌟 All Sources</option>
+                  <option value="single">📄 Single Files</option>
+                  <option value="batch">📚 Batch Processing</option>
+                </select>
+              </motion.div>
               
-              <select
-                value={`${sortBy}-${sortOrder}`}
-                onChange={(e) => {
-                  const [field, order] = e.target.value.split('-');
-                  setSortBy(field as any);
-                  setSortOrder(order as any);
-                }}
-                className="px-3 py-2 border rounded-md"
-              >
-                <option value="date-desc">Newest First</option>
-                <option value="date-asc">Oldest First</option>
-                <option value="name-asc">Name A-Z</option>
-                <option value="name-desc">Name Z-A</option>
-                <option value="size-desc">Largest First</option>
-                <option value="size-asc">Smallest First</option>
-                <option value="errors-asc">Fewest Errors</option>
-                <option value="errors-desc">Most Errors</option>
-                <option value="confidence-desc">Highest Confidence</option>
-                <option value="confidence-asc">Lowest Confidence</option>
-              </select>
+              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                <select
+                  value={`${sortBy}-${sortOrder}`}
+                  onChange={(e) => {
+                    const [field, order] = e.target.value.split('-');
+                    setSortBy(field as any);
+                    setSortOrder(order as any);
+                  }}
+                  className="px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 hover:border-blue-300"
+                >
+                  <option value="date-desc">🕒 Newest First</option>
+                  <option value="date-asc">⏰ Oldest First</option>
+                  <option value="name-asc">🔤 Name A-Z</option>
+                  <option value="name-desc">🔽 Name Z-A</option>
+                  <option value="size-desc">📈 Largest First</option>
+                  <option value="size-asc">📉 Smallest First</option>
+                  <option value="errors-asc">✅ Fewest Errors</option>
+                  <option value="errors-desc">⚠️ Most Errors</option>
+                  <option value="confidence-desc">💯 Highest Confidence</option>
+                  <option value="confidence-asc">📊 Lowest Confidence</option>
+                </select>
+              </motion.div>
             </div>
-          </div>
+          </motion.div>
 
           {/* Advanced Filters */}
           <AnimatePresence>
@@ -521,52 +553,133 @@ export function ExportHistoryPanel() {
             )}
           </AnimatePresence>
 
-          {/* Bulk Actions */}
-          {selectedRecords.size > 0 && (
-            <div className="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-950 rounded-lg">
-              <span className="text-sm font-medium">
-                {selectedRecords.size} record(s) selected
-              </span>
-              <div className="flex gap-2">
-                <Button onClick={exportSelectedRecords} size="sm" variant="outline">
-                  <Download className="h-4 w-4 mr-2" />
-                  Export Selected
-                </Button>
-                <Button onClick={bulkDeleteRecords} size="sm" variant="outline">
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete Selected
-                </Button>
-                <Button onClick={clearSelection} size="sm" variant="ghost">
-                  Clear Selection
-                </Button>
-              </div>
-            </div>
-          )}
+          {/* Enhanced Bulk Actions */}
+          <AnimatePresence>
+            {selectedRecords.size > 0 && (
+              <motion.div 
+                className="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800"
+                initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                transition={{ duration: 0.2 }}
+              >
+                <motion.span 
+                  className="text-sm font-medium flex items-center gap-2"
+                  animate={{ scale: [1, 1.05, 1] }}
+                  transition={{ duration: 0.3 }}
+                >
+                  ✨ {selectedRecords.size} record(s) selected
+                </motion.span>
+                <div className="flex gap-2">
+                  <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                    <Button 
+                      onClick={exportSelectedRecords} 
+                      size="sm" 
+                      variant="outline"
+                      className="hover:bg-green-50 hover:border-green-300 hover:text-green-700 transition-all duration-200"
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Export Selected
+                    </Button>
+                  </motion.div>
+                  <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                    <Button 
+                      onClick={bulkDeleteRecords} 
+                      size="sm" 
+                      variant="outline"
+                      className="hover:bg-red-50 hover:border-red-300 hover:text-red-700 transition-all duration-200"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete Selected
+                    </Button>
+                  </motion.div>
+                  <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                    <Button 
+                      onClick={clearSelection} 
+                      size="sm" 
+                      variant="ghost"
+                      className="hover:bg-gray-100 transition-colors duration-200"
+                    >
+                      Clear Selection
+                    </Button>
+                  </motion.div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-          {/* Quick Actions */}
-          <div className="flex items-center gap-2">
-            <Button onClick={selectAllRecords} size="sm" variant="outline">
-              Select All
-            </Button>
-            <Button onClick={clearSelection} size="sm" variant="outline" disabled={selectedRecords.size === 0}>
-              Clear Selection
-            </Button>
-            <div className="text-sm text-muted-foreground ml-auto">
-              Showing {filteredAndSortedRecords.length} of {allRecords.length} records
-            </div>
-          </div>
+          {/* Enhanced Quick Actions */}
+          <motion.div 
+            className="flex items-center gap-2"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+          >
+            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+              <Button 
+                onClick={selectAllRecords} 
+                size="sm" 
+                variant="outline"
+                className="hover:bg-blue-50 hover:border-blue-300 transition-all duration-200"
+              >
+                Select All ({filteredAndSortedRecords.length})
+              </Button>
+            </motion.div>
+            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+              <Button 
+                onClick={clearSelection} 
+                size="sm" 
+                variant="outline" 
+                disabled={selectedRecords.size === 0}
+                className="hover:bg-gray-50 hover:border-gray-300 disabled:opacity-50 transition-all duration-200"
+              >
+                Clear Selection
+              </Button>
+            </motion.div>
+            <motion.div 
+              className="text-sm text-muted-foreground ml-auto"
+              animate={{ opacity: [0.7, 1, 0.7] }}
+              transition={{ duration: 2, repeat: Infinity }}
+            >
+              📊 Showing {filteredAndSortedRecords.length} of {allRecords.length} records
+            </motion.div>
+          </motion.div>
 
-          {/* Export List */}
+          {/* Enhanced Export List with Advanced Micro-interactions */}
           <div className="space-y-2 max-h-96 overflow-y-auto">
             <AnimatePresence>
-              {filteredAndSortedRecords.map((record) => (
+              {filteredAndSortedRecords.map((record, index) => (
                 <motion.div
                   key={record.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  className={`border rounded-lg p-4 hover:bg-muted/50 transition-colors ${
-                    selectedRecords.has(record.id) ? 'bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800' : ''
+                  initial={{ opacity: 0, x: -50, scale: 0.95 }}
+                  animate={{ 
+                    opacity: 1, 
+                    x: 0, 
+                    scale: 1,
+                    transition: { 
+                      delay: index * 0.03,
+                      type: "spring",
+                      stiffness: 300,
+                      damping: 20
+                    }
+                  }}
+                  exit={{ 
+                    opacity: 0, 
+                    x: 50, 
+                    scale: 0.95,
+                    transition: { duration: 0.2 }
+                  }}
+                  whileHover={{ 
+                    scale: 1.02,
+                    y: -3,
+                    boxShadow: "0 8px 25px rgba(0,0,0,0.1)",
+                    transition: { duration: 0.2 }
+                  }}
+                  whileTap={{ scale: 0.98 }}
+                  className={`border rounded-lg p-4 cursor-pointer transition-all duration-200 ${
+                    selectedRecords.has(record.id) 
+                      ? 'bg-blue-50 dark:bg-blue-950 border-blue-300 dark:border-blue-700 shadow-md' 
+                      : 'hover:bg-muted/50 hover:border-primary/30'
                   }`}
                 >
                   <div className="flex items-start gap-4">
@@ -645,38 +758,70 @@ export function ExportHistoryPanel() {
                     </div>
                     
                     <div className="flex items-center gap-1">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => toggleStarRecord(record.id)}
-                        title={record.isStarred ? "Remove from favorites" : "Add to favorites"}
+                      <motion.div
+                        whileHover={{ scale: 1.2, rotate: record.isStarred ? 360 : 0 }}
+                        whileTap={{ scale: 0.9 }}
+                        transition={{ duration: 0.3 }}
                       >
-                        <Star className={`h-4 w-4 ${record.isStarred ? 'text-yellow-500 fill-current' : ''}`} />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => previewRecord(record)}
-                        title="Preview"
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => toggleStarRecord(record.id)}
+                          title={record.isStarred ? "Remove from favorites" : "Add to favorites"}
+                          className={`transition-all duration-200 ${
+                            record.isStarred 
+                              ? 'hover:bg-yellow-100 text-yellow-500' 
+                              : 'hover:bg-yellow-50 hover:text-yellow-600'
+                          }`}
+                        >
+                          <Star className={`h-4 w-4 ${record.isStarred ? 'text-yellow-500 fill-current' : ''}`} />
+                        </Button>
+                      </motion.div>
+                      
+                      <motion.div
+                        whileHover={{ scale: 1.2 }}
+                        whileTap={{ scale: 0.9 }}
                       >
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => downloadRecord(record)}
-                        title="Download"
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => previewRecord(record)}
+                          title="Preview"
+                          className="hover:bg-blue-100 hover:text-blue-600 transition-all duration-200"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </motion.div>
+                      
+                      <motion.div
+                        whileHover={{ scale: 1.2, y: -2 }}
+                        whileTap={{ scale: 0.9 }}
                       >
-                        <Download className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => deleteRecord(record.id)}
-                        title="Delete"
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => downloadRecord(record)}
+                          title="Download"
+                          className="hover:bg-green-100 hover:text-green-600 transition-all duration-200"
+                        >
+                          <Download className="h-4 w-4" />
+                        </Button>
+                      </motion.div>
+                      
+                      <motion.div
+                        whileHover={{ scale: 1.2, rotate: 15 }}
+                        whileTap={{ scale: 0.9 }}
                       >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => deleteRecord(record.id)}
+                          title="Delete"
+                          className="hover:bg-red-100 hover:text-red-600 transition-all duration-200"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </motion.div>
                     </div>
                   </div>
                 </motion.div>
@@ -685,16 +830,62 @@ export function ExportHistoryPanel() {
           </div>
 
           {filteredAndSortedRecords.length === 0 && (
-            <div className="text-center py-8 text-muted-foreground">
-              <History className="h-12 w-12 mx-auto mb-2 opacity-50" />
-              <p>No export records found</p>
-              <p className="text-sm">
+            <motion.div 
+              className="text-center py-8 text-muted-foreground"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+            >
+              <motion.div
+                animate={{ 
+                  y: [0, -10, 0],
+                  rotate: [0, 5, -5, 0]
+                }}
+                transition={{ 
+                  duration: 3,
+                  repeat: Infinity,
+                  ease: "easeInOut"
+                }}
+              >
+                <History className="h-12 w-12 mx-auto mb-2 opacity-50" />
+              </motion.div>
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.6 }}
+                className="text-lg font-medium mb-2"
+              >
+                {searchTerm || filterType !== 'all' ? '🔍 No matching records found' : '📋 No export records yet'}
+              </motion.p>
+              <motion.p 
+                className="text-sm"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.8 }}
+              >
                 {searchTerm || filterType !== 'all' 
-                  ? 'Try adjusting your search or filters'
-                  : 'Export some documents to see them here'
+                  ? '✨ Try adjusting your search or filters'
+                  : '🚀 Export some documents to see them here'
                 }
-              </p>
-            </div>
+              </motion.p>
+              {searchTerm && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 1 }}
+                  className="mt-4"
+                >
+                  <Button
+                    onClick={() => setSearchTerm('')}
+                    variant="outline"
+                    size="sm"
+                    className="hover:bg-blue-50 hover:border-blue-300"
+                  >
+                    Clear Search
+                  </Button>
+                </motion.div>
+              )}
+            </motion.div>
           )}
         </CardContent>
       </Card>
