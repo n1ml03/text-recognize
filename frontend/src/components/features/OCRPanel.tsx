@@ -6,9 +6,7 @@ import {
   Settings,
   Loader2,
   Image,
-  CheckCircle,
-  Sparkles
-} from 'lucide-react';
+  CheckCircle} from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -417,7 +415,7 @@ export function OCRPanel() {
                       icon: '📝',
                       color: 'text-purple-600 dark:text-purple-400'
                     }
-                  ].map((stat, index) => (
+                  ].map((stat) => (
                     <motion.div
                       key={stat.label}
                       variants={staggerItem}
