@@ -1,63 +1,91 @@
 """
-Data models for the Python backend service
+Data models for the Python backend service using Pydantic.
 """
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field
 
+# --- Preprocessing and Processing Options ---
 
 class PreprocessingOptions(BaseModel):
-    enhance_contrast: bool = True
-    denoise: bool = True
-    threshold_method: str = "adaptive_gaussian"
-    apply_morphology: bool = True
+    """Options for enhancing image quality before OCR."""
+    enhance_contrast: bool = Field(default=False, description="Apply CLAHE to enhance contrast.")
+    denoise: bool = Field(default=False, description="Apply denoising filter.")
+    threshold_method: str = Field(default="otsu", description="Thresholding method: 'adaptive_gaussian', 'otsu', 'none'.")
+    apply_morphology: bool = Field(default=False, description="Apply morphological operations (closing/opening).")
+    deskew: bool = Field(default=True, description="Automatically straighten skewed text images.")
+    upscale: bool = Field(default=True, description="Upscale low-resolution images for better OCR.")
 
+class TextProcessingOptions(BaseModel):
+    """Options for post-processing OCR text to improve structure and readability."""
+    use_advanced_processing: bool = Field(default=True, description="Enable advanced text structure processing.")
+    reading_order: str = Field(default="ltr_ttb", description="Reading order pattern: 'ltr_ttb', 'rtl_ttb', 'ttb_ltr', 'ttb_rtl'.")
+    enable_layout_analysis: bool = Field(default=True, description="Enable automatic layout detection (multi-column, tables, etc.).")
+    preserve_line_breaks: bool = Field(default=True, description="Preserve natural line breaks in the text.")
+    merge_fragmented_words: bool = Field(default=True, description="Attempt to merge fragmented words.")
 
 class VideoProcessingOptions(BaseModel):
-    frame_interval: int = 30  # Extract every Nth frame
-    similarity_threshold: float = 0.85
-    min_confidence: float = 0.5
-    max_frames: int = 1000  # Maximum frames to process
+    """Options for processing video files to extract text."""
+    frame_interval: int = Field(default=5, ge=1, description="Sample one frame every N frames initially.")
+    similarity_threshold: float = Field(default=0.98, ge=0.0, le=1.0, description="SSIM threshold to skip similar frames (higher means more similar).")
+    min_confidence: float = Field(default=0.6, ge=0.0, le=1.0, description="Minimum confidence score to accept OCR text from a frame.")
+    max_frames: int = Field(default=1000, ge=1, description="Maximum number of unique frames to process from the video.")
 
-
-class VideoFrameExtractionOptions(BaseModel):
-    frame_interval: int = Field(default=30, ge=1, description="Extract every Nth frame")
-    output_dir: Optional[str] = Field(default=None, description="Output directory for frames")
-    max_frames: int = Field(default=1000, ge=1, description="Maximum frames to extract")
-    similarity_threshold: float = Field(default=0.85, ge=0.0, le=1.0, description="Skip similar frames threshold")
-    enable_similarity_detection: bool = Field(default=True, description="Enable similarity detection")
-    resize_max_width: int = Field(default=1920, ge=100, description="Maximum frame width")
-    resize_max_height: int = Field(default=1080, ge=100, description="Maximum frame height")
-    jpeg_quality: int = Field(default=85, ge=1, le=100, description="JPEG compression quality")
-    batch_size: int = Field(default=10, ge=1, description="Batch size for processing")
-
+# --- Core Data Structures ---
 
 class BoundingBox(BaseModel):
+    """Represents a bounding box with x, y, width, and height."""
     x: int
     y: int
     width: int
     height: int
 
-
 class WordDetail(BaseModel):
+    """Details of a single recognized word, including its confidence and location."""
     text: str
     confidence: float
     bbox: BoundingBox
+    polygon: List[List[int]] = []  # Raw polygon coordinates from PaddleOCR
 
-
-class OCRResult(BaseModel):
+class TextLine(BaseModel):
+    """Represents a complete text line detected by OCR."""
     text: str
     confidence: float
-    engine_used: str = "PaddleOCR"
+    bbox: BoundingBox
+    polygon: List[List[int]]  # Polygon coordinates
+    textline_orientation_angle: int = 0
+
+# --- API Result Models ---
+
+class OCRResult(BaseModel):
+    """Structured result of an OCR operation on a single image."""
+    text: str
+    confidence: float
     processing_time: float
     word_details: List[WordDetail] = []
+    text_lines: List[TextLine] = []  # New: Complete text lines from PaddleOCR
     word_count: int = 0
-    file_path: str = ""
+    line_count: int = 0  # New: Number of text lines detected
+    file_path: Optional[str] = None
     success: bool = True
     error_message: Optional[str] = None
     metadata: Dict[str, Any] = {}
+    engine_used: Optional[str] = None
+    # Raw PaddleOCR output fields
+    rec_texts: List[str] = []  # Raw recognized texts
+    rec_scores: List[float] = []  # Raw confidence scores  
+    rec_polys: List[List[List[int]]] = []  # Raw polygon coordinates
+    detection_polygons: List[List[List[int]]] = []  # Detection polygons (dt_polys)
 
+class BatchOCRResult(BaseModel):
+    """Aggregated result of a batch OCR operation."""
+    results: List[OCRResult]
+    total_processing_time: float
+    batch_size: int
+    files_processed: int
+    files_failed: int
 
 class DocumentExtractionResult(BaseModel):
+    """Result of extracting plain text from a document file (PDF, DOCX, etc.)."""
     text: str
     file_path: str
     file_type: str
@@ -65,38 +93,41 @@ class DocumentExtractionResult(BaseModel):
     success: bool
     error_message: Optional[str] = None
     metadata: Dict[str, Any] = {}
+    
+class VideoOCRResult(BaseModel):
+    """Structured result of an OCR operation on a video file."""
+    text: str
+    confidence: float
+    processing_time: float
+    frames_processed: int
+    frames_with_text: int
+    unique_text_segments: int
+    success: bool = True
+    error_message: Optional[str] = None
+    metadata: Dict[str, Any] = {}
+    engine_used: Optional[str] = None
 
 
-class VideoFrameExtractionRequest(BaseModel):
-    file_path: str = Field(..., description="Path to the video file")
-    options: Optional[VideoFrameExtractionOptions] = Field(default=None, description="Extraction options")
-
+# --- API Request Models ---
 
 class BatchOCRRequest(BaseModel):
-    files: List[str] = Field(..., description="List of file paths to process")
-    preprocessing_options: Optional[PreprocessingOptions] = Field(default=None, description="OCR preprocessing options")
-    max_file_size_mb: int = Field(default=1, description="Maximum file size in MB for batch processing")
-
-
-class BatchOCRResult(BaseModel):
-    results: List[OCRResult] = Field(..., description="OCR results for each file")
-    total_processing_time: float = Field(..., description="Total time to process all files")
-    batch_size: int = Field(..., description="Number of files processed")
-    compression_ratio: Optional[float] = Field(default=None, description="Response compression ratio")
-    files_processed: int = Field(..., description="Number of files successfully processed")
-    files_failed: int = Field(..., description="Number of files that failed processing")
-
-
-class VideoFrameExtractionResult(BaseModel):
-    frame_paths: List[str] = Field(description="List of extracted frame file paths")
-    output_directory: str = Field(description="Directory containing extracted frames")
-    total_frames_extracted: int = Field(description="Number of frames successfully extracted")
-    total_video_frames: int = Field(description="Total frames in the video")
-    processing_time: float = Field(description="Time taken for extraction in seconds")
-    success: bool = Field(description="Whether extraction was successful")
-    error_message: Optional[str] = Field(default=None, description="Error message if extraction failed")
-    metadata: Dict[str, Any] = Field(default={}, description="Additional metadata about the extraction")
-
+    """Request model for processing multiple image files in a batch."""
+    file_paths: List[str]
+    preprocessing_options: Optional[PreprocessingOptions] = None
+    text_processing_options: Optional[TextProcessingOptions] = None
 
 class DocumentExtractionRequest(BaseModel):
+    """Request model for extracting text from a single document."""
     file_path: str
+
+class ImageOCRRequest(BaseModel):
+    """Request model for processing a single image from a file path."""
+    file_path: str
+    preprocessing_options: Optional[PreprocessingOptions] = None
+    text_processing_options: Optional[TextProcessingOptions] = None
+
+class VideoOCRRequest(BaseModel):
+    """Request model for processing a video file from a file path."""
+    file_path: str
+    video_options: Optional[VideoProcessingOptions] = None
+    preprocessing_options: Optional[PreprocessingOptions] = None

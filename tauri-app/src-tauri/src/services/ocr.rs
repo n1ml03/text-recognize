@@ -108,143 +108,23 @@ impl OCRService {
     }
 
     async fn ensure_python_service_running(&self) -> AppResult<()> {
-        // Check if Python service is running
+        // Check if Python service is running (do not auto-start)
         match self.http_client.get(&format!("{}/health", self.python_service_url)).send().await {
             Ok(response) if response.status().is_success() => {
                 log::info!("Python OCR service is running");
                 Ok(())
             }
             _ => {
-                log::info!("Starting Python OCR service...");
-                self.start_python_service().await
+                Err(AppError::with_details(
+                    ErrorCode::OcrInitialization,
+                    "Python OCR service not available",
+                    format!("Please start the Python backend service manually:\n1. Navigate to the python_backend directory\n2. Run: python main.py --host 0.0.0.0 --port 8000\n3. Ensure service is accessible at {}/health", self.python_service_url)
+                ))
             }
         }
     }
 
-    async fn start_python_service(&self) -> AppResult<()> {
-        log::info!("Starting PaddleOCR service...");
 
-        // Try to find the executable in different locations
-        let executable_path = self.find_paddleocr_executable()?;
-
-        log::info!("Found PaddleOCR executable at: {:?}", executable_path);
-
-        // Start the executable with configurable host
-        let host = std::env::var("BACKEND_HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
-        let port = std::env::var("BACKEND_PORT").unwrap_or_else(|_| "8000".to_string());
-
-        let mut cmd = TokioCommand::new(&executable_path);
-        cmd.args(&["--host", &host, "--port", &port])
-            .stdout(Stdio::null())
-            .stderr(Stdio::null());
-
-        let child = cmd.spawn()
-            .map_err(|e| AppError::with_details(
-                ErrorCode::OcrInitialization,
-                "Failed to start PaddleOCR executable",
-                format!("Error: {}. Path: {:?}", e, executable_path)
-            ))?;
-
-        // Store the process handle for later cleanup
-        {
-            let mut process_guard = self.process_handle.lock().await;
-            *process_guard = Some(child);
-        }
-
-        // Wait for service to start with better error reporting
-        for attempt in 1..=30 { // Wait up to 30 seconds
-            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-
-            match self.http_client.get(&format!("{}/health", self.python_service_url)).send().await {
-                Ok(response) if response.status().is_success() => {
-                    log::info!("PaddleOCR service started successfully after {} seconds", attempt);
-                    return Ok(());
-                }
-                Ok(response) => {
-                    log::debug!("Service not ready yet (attempt {}): HTTP {}", attempt, response.status());
-                }
-                Err(e) => {
-                    log::debug!("Service not ready yet (attempt {}): {}", attempt, e);
-                }
-            }
-        }
-
-        Err(AppError::with_details(
-            ErrorCode::OcrInitialization,
-            "Failed to start PaddleOCR service",
-            "Service did not respond within 30 seconds. The executable may have failed to start."
-        ))
-    }
-
-    fn find_paddleocr_executable(&self) -> AppResult<std::path::PathBuf> {
-        // Get the directory where the Tauri app is located
-        let app_dir = std::env::current_exe()
-            .map_err(|e| AppError::with_details(
-                ErrorCode::OcrInitialization,
-                "Failed to get current executable path",
-                e.to_string()
-            ))?
-            .parent()
-            .ok_or_else(|| AppError::new(
-                ErrorCode::OcrInitialization,
-                "Failed to get parent directory of executable"
-            ))?
-            .to_path_buf();
-
-        // Define possible executable names and locations
-        let executable_name = if cfg!(target_os = "windows") {
-            "paddleocr_service.exe"
-        } else {
-            "paddleocr_service"
-        };
-
-        // Search locations in order of preference
-        let search_paths = vec![
-            // Same directory as Tauri app
-            app_dir.join(executable_name),
-            // Resources directory (for app bundles)
-            app_dir.join("resources").join(executable_name),
-            // Platform-specific subdirectory
-            app_dir.join(format!("{}_{}",
-                std::env::consts::OS,
-                std::env::consts::ARCH
-            )).join(executable_name),
-            // Fallback to bundled resources
-            app_dir.join("bin").join(executable_name),
-            // Development fallback
-            std::env::current_dir()
-                .unwrap_or_else(|_| app_dir.clone())
-                .join("dist")
-                .join(format!("{}_{}", std::env::consts::OS, std::env::consts::ARCH))
-                .join(executable_name),
-        ];
-
-        // Try each path
-        for path in &search_paths {
-            if path.exists() && path.is_file() {
-                log::info!("Found PaddleOCR executable at: {:?}", path);
-                return Ok(path.clone());
-            } else {
-                log::debug!("PaddleOCR executable not found at: {:?}", path);
-            }
-        }
-
-        // If not found, provide helpful error message
-        let search_paths_str = search_paths
-            .iter()
-            .map(|p| format!("  - {:?}", p))
-            .collect::<Vec<_>>()
-            .join("\n");
-
-        Err(AppError::with_details(
-            ErrorCode::OcrInitialization,
-            "PaddleOCR executable not found",
-            format!(
-                "Searched in the following locations:\n{}\n\nPlease ensure the PaddleOCR executable is bundled with the application.",
-                search_paths_str
-            )
-        ))
-    }
 
     pub async fn extract_text_from_image(
         &mut self,
@@ -265,24 +145,21 @@ impl OCRService {
             ));
         }
 
-        // Prepare request data
-        let mut request_data = serde_json::json!({
-            "file_path": image_path
-        });
+        // Create multipart form with file path (more efficient than uploading entire file)
+        let opts = options.unwrap_or_default();
+        let mut form = reqwest::multipart::Form::new()
+            .text("file_path", image_path.to_string())
+            .text("enhance_contrast", opts.enhance_contrast.to_string())
+            .text("denoise", opts.denoise.to_string())
+            .text("threshold_method", opts.threshold_method.clone())
+            .text("apply_morphology", opts.apply_morphology.to_string())
+            .text("deskew", "true")
+            .text("upscale", "true");
 
-        if let Some(opts) = options {
-            request_data["preprocessing_options"] = serde_json::to_value(opts)
-                .map_err(|e| AppError::with_details(
-                    ErrorCode::OcrProcessing,
-                    "Failed to serialize preprocessing options",
-                    e.to_string()
-                ))?;
-        }
-
-        // Make request to Python service using the file path endpoint
+        // Make request to Python service using multipart form
         let response = self.http_client
-            .post(&format!("{}/ocr/image-path", self.python_service_url))
-            .json(&request_data)
+            .post(&format!("{}/ocr/image", self.python_service_url))
+            .multipart(form)
             .send()
             .await
             .map_err(|e| AppError::with_details(
@@ -333,32 +210,25 @@ impl OCRService {
             ));
         }
 
-        // Prepare request data
-        let mut request_data = serde_json::json!({
-            "file_path": video_path
-        });
-
-        if let Some(opts) = options {
-            request_data["preprocessing_options"] = serde_json::to_value(opts)
-                .map_err(|e| AppError::with_details(
-                    ErrorCode::OcrProcessing,
-                    "Failed to serialize preprocessing options",
-                    e.to_string()
-                ))?;
-        }
-
-        // Add default video processing options
-        request_data["video_options"] = serde_json::json!({
-            "frame_interval": 30,
-            "similarity_threshold": 0.85,
-            "min_confidence": 0.5,
-            "max_frames": 1000
-        });
+        // Create multipart form with file path (more efficient than uploading entire file)
+        let opts = options.unwrap_or_default();
+        let mut form = reqwest::multipart::Form::new()
+            .text("file_path", video_path.to_string())
+            .text("frame_interval", "5")
+            .text("similarity_threshold", "0.98")
+            .text("min_confidence", "0.6")
+            .text("max_frames", "1000")
+            .text("enhance_contrast", opts.enhance_contrast.to_string())
+            .text("denoise", opts.denoise.to_string())
+            .text("threshold_method", opts.threshold_method.clone())
+            .text("apply_morphology", opts.apply_morphology.to_string())
+            .text("deskew", "true")
+            .text("upscale", "true");
 
         // Make request to Python service
         let response = self.http_client
             .post(&format!("{}/ocr/video", self.python_service_url))
-            .json(&request_data)
+            .multipart(form)
             .send()
             .await
             .map_err(|e| AppError::with_details(
@@ -376,7 +246,7 @@ impl OCRService {
             ));
         }
 
-        // Parse response
+        // Parse response - expecting VideoOCRResult from backend
         let video_result: serde_json::Value = response.json().await
             .map_err(|e| AppError::with_details(
                 ErrorCode::OcrProcessing,
@@ -388,7 +258,7 @@ impl OCRService {
         let ocr_result = OCRResult {
             text: video_result["text"].as_str().unwrap_or("").to_string(),
             confidence: video_result["confidence"].as_f64().unwrap_or(0.0) as f32,
-            engine_used: video_result["engine_used"].as_str().unwrap_or("PaddleOCR").to_string(),
+            engine_used: "PaddleOCR".to_string(),
             processing_time: video_result["processing_time"].as_f64().unwrap_or(0.0),
             word_details: vec![], // Video processing doesn't provide word details
         };

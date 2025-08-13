@@ -87,7 +87,7 @@ const OCR_CONFIG = {
   READING_SPEED_WPM: 200, // Words per minute for reading time calculation
 } as const;
 
-// Streamlined PaddleOCR processor (for web environment via Tauri backend)
+// Unified PaddleOCR processor (for both web and desktop via Python backend)
 export class StreamlinedWebOCR {
   private static isInitialized = false;
   private static initializationPromise: Promise<void> | null = null;
@@ -107,13 +107,10 @@ export class StreamlinedWebOCR {
   }
 
   private static async performInitialization(): Promise<void> {
-    // Web environment uses PaddleOCR backend via HTTP or Tauri
-    if (universalFileApi.isWebEnvironment() && !universalFileApi.isTauriEnvironment()) {
-      // Check if PaddleOCR backend is available
-      await this.checkBackendAvailability();
-    }
+    // Both web and desktop environments use unified Python backend via HTTP
+    await this.checkBackendAvailability();
     this.isInitialized = true;
-    console.log('Web OCR processor initialized (using PaddleOCR backend)');
+    console.log('Unified OCR processor initialized (using Python PaddleOCR backend)');
   }
 
   private static async checkBackendAvailability(): Promise<void> {
@@ -164,18 +161,12 @@ export class StreamlinedWebOCR {
         };
       }
 
-      console.log('Initializing PaddleOCR backend...');
+      console.log('Initializing unified PaddleOCR backend...');
       await this.initialize();
 
-      // For web environment, make direct HTTP request to PaddleOCR backend
-      if (universalFileApi.isWebEnvironment() && !universalFileApi.isTauriEnvironment()) {
-        console.log('Web environment detected, using direct HTTP request to PaddleOCR backend');
-        return await this.processFileViaHTTP(file, startTime);
-      }
-
-      // If we're in Tauri environment, delegate to the Tauri OCR processing
-      // This will be handled by the StreamlinedProcessor.processFile method
-      throw new Error('OCR processing should be handled by Tauri backend. This path should not be reached.');
+      // Always use HTTP request to unified Python backend for both web and desktop
+      console.log('Using HTTP request to unified Python backend');
+      return await this.processFileViaHTTP(file, startTime);
 
     } catch (error) {
       console.error('OCR processing failed:', error);
@@ -188,17 +179,19 @@ export class StreamlinedWebOCR {
       // Default PaddleOCR backend URL (can be configured)
       const backendUrl = this.getPaddleOCRBackendUrl();
 
-      // Create form data for file upload
+      // Create form data for file upload to unified endpoint
       const formData = new FormData();
       formData.append('file', file);
       formData.append('enhance_contrast', 'true');
       formData.append('denoise', 'true');
       formData.append('threshold_method', 'adaptive_gaussian');
       formData.append('apply_morphology', 'true');
+      formData.append('deskew', 'true');
+      formData.append('upscale', 'true');
 
-      console.log(`Making HTTP request to PaddleOCR backend: ${backendUrl}/ocr/image`);
+      console.log(`Making HTTP request to unified PaddleOCR backend: ${backendUrl}/ocr/image`);
 
-      // Make HTTP request to PaddleOCR backend
+      // Make HTTP request to unified PaddleOCR backend endpoint
       const response = await fetch(`${backendUrl}/ocr/image`, {
         method: 'POST',
         body: formData,
@@ -221,7 +214,7 @@ export class StreamlinedWebOCR {
       };
 
     } catch (error) {
-      console.error('HTTP request to PaddleOCR backend failed:', error);
+      console.error('HTTP request to unified PaddleOCR backend failed:', error);
 
       if (error instanceof TypeError && error.message.includes('fetch')) {
         throw new Error(`Cannot connect to PaddleOCR backend at ${this.getPaddleOCRBackendUrl()}.
@@ -229,9 +222,11 @@ export class StreamlinedWebOCR {
 Please ensure the Python backend service is running:
 1. Navigate to the python_backend directory
 2. Run: python main.py --host 0.0.0.0 --port 8000
-3. Or use the desktop version for integrated OCR processing
+3. Or use the startup scripts: ./start_backend.sh
 
-The backend should be accessible at http://localhost:8000/health`);
+The backend should be accessible at http://localhost:8000/health
+
+Note: Both web and desktop versions now use the unified Python backend.`);
       }
 
       throw error;
@@ -661,38 +656,11 @@ export class StreamlinedProcessor {
   static async processFile(fileInfo: FileInfo, options?: {
     ocr_options?: OCROptions;
   }): Promise<StreamlinedProcessingResult> {
+    // Always use unified HTTP approach to Python backend for both web and desktop
     if (universalFileApi.isTauriEnvironment()) {
-      // Use Tauri OCR API (already optimized)
-      const { ocrApi } = await import('./tauri-api');
-      const defaultOptions = {
-        enhance_contrast: true,
-        denoise: true,
-        threshold_method: 'adaptive_gaussian',
-        apply_morphology: true,
-      };
-
-      const ocrOptions = options?.ocr_options ? {
-        enhance_contrast: options.ocr_options.enhance_contrast ?? true,
-        denoise: options.ocr_options.denoise ?? true,
-        threshold_method: options.ocr_options.threshold_method ?? 'adaptive_gaussian',
-        apply_morphology: options.ocr_options.apply_morphology ?? true,
-      } : defaultOptions;
-
-      // Determine if it's a video file
-      const isVideo = fileInfo.file_type === 'Video' ||
-                     fileInfo.path.toLowerCase().match(/\.(mp4|avi|mov|mkv|wmv|flv)$/);
-
-      const result = isVideo
-        ? await ocrApi.processVideo(fileInfo.path, ocrOptions)
-        : await ocrApi.processImage(fileInfo.path, ocrOptions);
-
-      return {
-        text: result.text,
-        confidence: result.confidence,
-        engine_used: result.engine_used,
-        processing_time: result.processing_time,
-        word_details: TypeAdapters.adaptWordDetails(result.word_details || []),
-      };
+      // For Tauri environment, we need to convert the file path to a File object
+      // or handle it differently since we need to send it via HTTP
+      throw new Error('Tauri file processing via HTTP not yet implemented. Use StreamlinedWebOCR.processFile with File object instead.');
     } else {
       // Use streamlined web processing
       const webFile = (fileInfo as any).webFile;
