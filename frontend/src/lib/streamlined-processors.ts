@@ -653,7 +653,7 @@ class TypeAdapters {
 
 // Main streamlined processor
 export class StreamlinedProcessor {
-  static async processFile(fileInfo: FileInfo, options?: {
+  static async processFile(fileInfo: FileInfo, _options?: {
     ocr_options?: OCROptions;
   }): Promise<StreamlinedProcessingResult> {
     // Always use unified HTTP approach to Python backend for both web and desktop
