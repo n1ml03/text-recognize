@@ -1,4 +1,4 @@
-import { useCallback, useState, useRef, useEffect } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Upload, File as FileIcon, Image, Video, FileText, X, CheckCircle2, Sparkles, ZoomIn, ZoomOut, RotateCw, Eye, Download } from 'lucide-react';
@@ -23,7 +23,6 @@ export function FileUploadArea() {
   const [previewZoom, setPreviewZoom] = useState(1);
   const [previewRotation, setPreviewRotation] = useState(0);
   const [showFullPreview, setShowFullPreview] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Universal file handling for both desktop and web
   const handleFileSelect = useCallback(async (fileInput: string | File) => {
