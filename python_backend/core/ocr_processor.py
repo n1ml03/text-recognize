@@ -17,7 +17,7 @@ from config import MIN_OCR_CONFIDENCE
 
 logger = logging.getLogger(__name__)
 
-def perform_ocr_on_image(image_path: str, options: PreprocessingOptions, text_options: TextProcessingOptions = None) -> OCRResult:
+def perform_ocr_on_image(image_path: str, options: PreprocessingOptions, text_options: TextProcessingOptions) -> OCRResult:
     """
     Performs OCR on a single image file, applying preprocessing and caching.
     """

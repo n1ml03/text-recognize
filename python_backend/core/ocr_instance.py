@@ -53,21 +53,11 @@ def initialize_ocr():
         
         try:
             logger.info("Initializing PaddleOCR with optimized settings...")
-            
-            # Check for GPU availability
-            gpu_available = False
-            try:
-                import paddle
-                if paddle.is_compiled_with_cuda():
-                    gpu_available = True
-                    logger.info("GPU support detected, enabling GPU acceleration")
-            except:
-                logger.info("Using CPU-only mode")
 
             # Optimized OCR configuration
             ocr_instance = PaddleOCR(
-                text_detection_model_name="PP-OCRv5_mobile_det",
-                text_recognition_model_name="PP-OCRv5_mobile_rec",
+                text_detection_model_name="PP-OCRv5_server_det",
+                text_recognition_model_name="PP-OCRv5_server_rec",
                 use_doc_orientation_classify=False,  # Disable for speed
                 use_doc_unwarping=False,  # Disable for speed
                 use_textline_orientation=True

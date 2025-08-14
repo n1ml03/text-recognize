@@ -53,7 +53,7 @@ class AdvancedTextPostprocessor:
         self.paragraph_spacing_threshold = 2.0  # For detecting paragraph breaks
         self.column_gap_threshold = 0.1  # Minimum gap between columns (relative to page width)
         
-    def process_ocr_result(self, word_details: List[WordDetail], text_lines: List[TextLine] = None) -> str:
+    def process_ocr_result(self, word_details: List[WordDetail], text_lines: List[TextLine]) -> str:
         """
         Main processing function that takes OCR word details and returns properly structured text.
         
@@ -242,8 +242,6 @@ class AdvancedTextPostprocessor:
     
     def _create_block_from_words(self, words: List[WordDetail]) -> TextBlock:
         """Create a TextBlock from a list of words"""
-        if not words:
-            return None
         
         # Combine text
         text = " ".join(word.text for word in words)
@@ -430,7 +428,7 @@ def create_text_postprocessor(reading_order: str = "ltr_ttb") -> AdvancedTextPos
     order = order_map.get(reading_order, ReadingOrder.LEFT_TO_RIGHT_TOP_TO_BOTTOM)
     return AdvancedTextPostprocessor(reading_order=order)
 
-def improve_text_structure(word_details: List[WordDetail], text_lines: List[TextLine] = None, 
+def improve_text_structure(word_details: List[WordDetail], text_lines: List[TextLine], 
                           reading_order: str = "ltr_ttb") -> str:
     """
     Convenience function to improve text structure from OCR results.
