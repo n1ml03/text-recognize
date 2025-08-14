@@ -5,8 +5,11 @@ import os
 import time
 import logging
 import tempfile
+import asyncio
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Request, Depends
-from typing import Optional
+from typing import Optional, List
+import aiofiles
 
 from models import (
     PreprocessingOptions, TextProcessingOptions, OCRResult, DocumentExtractionResult, 
@@ -61,20 +64,23 @@ async def process_image(
                 reading_order=reading_order
             )
             
-            # Case 1: File upload
+            # Case 1: File upload - optimized async handling
             if file is not None:
                 # Create temporary file with proper extension
                 file_extension = ""
                 if file.filename:
                     file_extension = os.path.splitext(file.filename)[1].lower()
                 
+                # Use async context manager for better resource handling
                 temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=file_extension)
+                temp_file.close()  # Close the file handle immediately
                 
-                # Write uploaded content to temp file
-                content = await file.read()
-                temp_file.write(content)
-                temp_file.flush()
-                temp_file.close()
+                # Write content asynchronously for better performance
+                async with aiofiles.open(temp_file.name, 'wb') as f:
+                    # Read file in chunks to handle large files efficiently
+                    chunk_size = 8192
+                    while chunk := await file.read(chunk_size):
+                        await f.write(chunk)
                 
                 image_path = temp_file.name
                 
@@ -102,8 +108,13 @@ async def process_image(
         else:
             raise HTTPException(status_code=400, detail="Content-Type must be multipart/form-data or application/json")
         
-        # Process the image
-        result = perform_ocr_on_image(image_path, options, text_options)
+        # Process the image asynchronously for better concurrency
+        loop = asyncio.get_event_loop()
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            result = await loop.run_in_executor(
+                executor, perform_ocr_on_image, image_path, options, text_options
+            )
+        
         result.processing_time = time.time() - start_time
         result.engine_used = "PaddleOCR"
         
@@ -118,38 +129,73 @@ async def process_image(
         logger.error(f"Error processing image: {e}")
         raise HTTPException(status_code=500, detail=f"Error processing image: {str(e)}")
     finally:
-        # Clean up temporary file if created
+        # Clean up temporary file asynchronously if created
         if temp_file and os.path.exists(temp_file.name):
             try:
-                os.unlink(temp_file.name)
+                # Use async file deletion for better performance
+                loop = asyncio.get_event_loop()
+                await loop.run_in_executor(None, os.unlink, temp_file.name)
             except Exception as e:
                 logger.warning(f"Failed to delete temporary file {temp_file.name}: {e}")
 
+async def _process_single_image(file_path: str, options: PreprocessingOptions, text_options: TextProcessingOptions) -> OCRResult:
+    """Process a single image in a thread pool."""
+    if not os.path.exists(file_path):
+        return OCRResult(
+            text="", confidence=0, processing_time=0, file_path=file_path, 
+            success=False, error_message="File not found", engine_used="PaddleOCR"
+        )
+    
+    # Run CPU-bound OCR processing in thread pool
+    loop = asyncio.get_event_loop()
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        result = await loop.run_in_executor(
+            executor, perform_ocr_on_image, file_path, options, text_options
+        )
+    
+    result.engine_used = "PaddleOCR"
+    return result
+
 @router.post("/ocr/batch", response_model=BatchOCRResult)
 async def process_batch_ocr(request: BatchOCRRequest):
-    """Processes multiple image files in a single batch request."""
+    """Processes multiple image files concurrently for improved performance."""
     start_time = time.time()
     options = request.preprocessing_options or PreprocessingOptions()
     text_options = request.text_processing_options or TextProcessingOptions()
     
-    results = []
-    for file_path in request.file_paths:
-        if os.path.exists(file_path):
-            result = perform_ocr_on_image(file_path, options, text_options)
-            result.engine_used = "PaddleOCR"
-            results.append(result)
-        else:
-            results.append(OCRResult(
-                text="", confidence=0, processing_time=0, file_path=file_path, 
-                success=False, error_message="File not found", engine_used="PaddleOCR"
+    # Process images concurrently with limited concurrency
+    max_concurrent = min(8, len(request.file_paths))  # Limit to prevent resource exhaustion
+    semaphore = asyncio.Semaphore(max_concurrent)
+    
+    async def process_with_semaphore(file_path: str) -> OCRResult:
+        async with semaphore:
+            return await _process_single_image(file_path, options, text_options)
+    
+    # Execute all tasks concurrently
+    tasks = [process_with_semaphore(file_path) for file_path in request.file_paths]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    
+    # Handle any exceptions that occurred during processing
+    processed_results = []
+    for i, result in enumerate(results):
+        if isinstance(result, Exception):
+            logger.error(f"Error processing {request.file_paths[i]}: {result}")
+            processed_results.append(OCRResult(
+                text="", confidence=0, processing_time=0, 
+                file_path=request.file_paths[i], 
+                success=False, error_message=str(result), engine_used="PaddleOCR"
             ))
-            
+        else:
+            processed_results.append(result)
+    
     total_time = time.time() - start_time
-    files_processed = sum(1 for r in results if r.success)
-    files_failed = len(results) - files_processed
+    files_processed = sum(1 for r in processed_results if r.success)
+    files_failed = len(processed_results) - files_processed
+    
+    logger.info(f"Batch processed {len(request.file_paths)} files in {total_time:.2f}s (concurrent)")
     
     return BatchOCRResult(
-        results=results,
+        results=processed_results,
         total_processing_time=total_time,
         batch_size=len(request.file_paths),
         files_processed=files_processed,

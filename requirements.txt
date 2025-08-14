@@ -1,17 +1,31 @@
+# Core OCR and ML dependencies
 paddlepaddle>=3.1.0
 paddleocr>=3.1.0
 opencv-python>=4.8.0
 pillow>=10.0.0
 numpy>=1.21,<2.3.0
+
+# Text processing and performance
 Levenshtein>=0.20.0
+scikit-image>=0.25.2
+
+# Web framework - optimized versions
 fastapi>=0.100.0
 uvicorn[standard]>=0.20.0
 hypercorn>=0.14.0
 pydantic>=2.0.0
+
+# File handling and I/O
 python-multipart>=0.0.6
 aiofiles>=23.0.0
-psutil>=5.9.0
 chardet>=5.2.0
+
+# System monitoring and performance
+psutil>=5.9.0
+
+# Additional performance dependencies
+orjson>=3.9.0  # Faster JSON serialization
+lz4>=4.3.0     # Fast compression alternative
 
 # Document processing dependencies
 pypdfium2>=4.30.0

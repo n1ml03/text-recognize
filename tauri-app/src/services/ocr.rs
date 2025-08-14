@@ -1,9 +1,8 @@
 use crate::error::{AppResult, AppError, ErrorCode};
 use serde::{Deserialize, Serialize};
-use std::process::Stdio;
 use std::path::Path;
 use std::sync::Arc;
-use tokio::process::{Command as TokioCommand, Child};
+use tokio::process::Child;
 use tokio::sync::Mutex;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -38,12 +37,7 @@ pub struct PreprocessingOptions {
     pub apply_morphology: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BatchOCRRequest {
-    pub files: Vec<String>,
-    pub preprocessing_options: Option<PreprocessingOptions>,
-    pub max_file_size_mb: i32,
-}
+
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BatchOCRResult {
@@ -147,7 +141,7 @@ impl OCRService {
 
         // Create multipart form with file path (more efficient than uploading entire file)
         let opts = options.unwrap_or_default();
-        let mut form = reqwest::multipart::Form::new()
+        let form = reqwest::multipart::Form::new()
             .text("file_path", image_path.to_string())
             .text("enhance_contrast", opts.enhance_contrast.to_string())
             .text("denoise", opts.denoise.to_string())
@@ -212,7 +206,7 @@ impl OCRService {
 
         // Create multipart form with file path (more efficient than uploading entire file)
         let opts = options.unwrap_or_default();
-        let mut form = reqwest::multipart::Form::new()
+        let form = reqwest::multipart::Form::new()
             .text("file_path", video_path.to_string())
             .text("frame_interval", "5")
             .text("similarity_threshold", "0.98")
@@ -273,7 +267,6 @@ impl OCRService {
         &mut self,
         file_paths: Vec<String>,
         options: Option<PreprocessingOptions>,
-        max_file_size_mb: i32,
     ) -> AppResult<BatchOCRResult> {
         log::info!("Processing batch OCR for {} files", file_paths.len());
 
@@ -281,11 +274,10 @@ impl OCRService {
         self.ensure_python_service_running().await?;
 
         // Prepare batch request
-        let batch_request = BatchOCRRequest {
-            files: file_paths.clone(),
-            preprocessing_options: options,
-            max_file_size_mb,
-        };
+        let batch_request = serde_json::json!({
+            "file_paths": file_paths.clone(),
+            "preprocessing_options": options
+        });
 
         // Make request to Python service
         let response = self.http_client

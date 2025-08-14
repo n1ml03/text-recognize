@@ -1,7 +1,7 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useRef, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Upload, File as FileIcon, Image, Video, FileText, X, CheckCircle2, Sparkles } from 'lucide-react';
+import { Upload, File as FileIcon, Image, Video, FileText, X, CheckCircle2, Sparkles, ZoomIn, ZoomOut, RotateCw, Eye, Download } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { UploadIcon } from '@/components/ui/animated-icons';
@@ -16,8 +16,14 @@ export function FileUploadArea() {
   } = useFileState();
   const { setError } = useAppStore();
   const [isDragActive, setIsDragActive] = useState(false);
-
   const [uploadSuccess, setUploadSuccess] = useState(false);
+  
+  // Image preview states
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [previewZoom, setPreviewZoom] = useState(1);
+  const [previewRotation, setPreviewRotation] = useState(0);
+  const [showFullPreview, setShowFullPreview] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Universal file handling for both desktop and web
   const handleFileSelect = useCallback(async (fileInput: string | File) => {
@@ -47,12 +53,6 @@ export function FileUploadArea() {
 
       if (!isImage && !isVideo && !isDocument && !isPdf) {
         console.log('File extension:', universalFileApi.getFileExtension(fileInput instanceof File ? fileInput.name : fileInput));
-        console.log('Supported formats:', {
-          image: universalFileApi.getSupportedFormats().image,
-          video: universalFileApi.getSupportedFormats().video,
-          document: universalFileApi.getSupportedFormats().document,
-          pdf: universalFileApi.getSupportedFormats().pdf
-        });
         setError('File format not supported. Please select an image, video, document, or PDF file.');
         return;
       }
@@ -73,6 +73,16 @@ export function FileUploadArea() {
       
       setCurrentFile(fileInfo);
       setError(null);
+
+      // Generate image preview for image files
+      if (isImage && fileInput instanceof File) {
+        await generateImagePreview(fileInput);
+      } else if (isImage && typeof fileInput === 'string') {
+        // For desktop files, we'd need to handle this differently
+        console.log('Desktop image preview not yet implemented');
+      } else {
+        setImagePreview(null);
+      }
 
       // Show success animation
       setUploadSuccess(true);
@@ -146,8 +156,31 @@ export function FileUploadArea() {
     }
   };
 
+  // Generate image preview from File object
+  const generateImagePreview = useCallback(async (file: File): Promise<void> => {
+    try {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const result = e.target?.result;
+        if (typeof result === 'string') {
+          setImagePreview(result);
+          setPreviewZoom(1);
+          setPreviewRotation(0);
+        }
+      };
+      reader.readAsDataURL(file);
+    } catch (error) {
+      console.error('Error generating image preview:', error);
+      setImagePreview(null);
+    }
+  }, []);
+
   const clearFile = () => {
     setCurrentFile(null);
+    setImagePreview(null);
+    setPreviewZoom(1);
+    setPreviewRotation(0);
+    setShowFullPreview(false);
   };
 
   const getFileIcon = (fileType: string) => {
@@ -163,6 +196,75 @@ export function FileUploadArea() {
   const formatFileSize = (bytes: number) => {
     return universalFileApi.formatFileSize(bytes);
   };
+
+  // Enhanced preview control functions
+  const handleZoomIn = useCallback(() => {
+    setPreviewZoom(prev => Math.min(prev + 0.25, showFullPreview ? 5 : 3));
+  }, [showFullPreview]);
+
+  const handleZoomOut = useCallback(() => {
+    setPreviewZoom(prev => Math.max(prev - 0.25, 0.25));
+  }, []);
+
+  const handleRotate = useCallback(() => {
+    setPreviewRotation(prev => (prev + 90) % 360);
+  }, []);
+
+  const toggleFullPreview = useCallback(() => {
+    setShowFullPreview(prev => !prev);
+  }, []);
+
+  const resetView = useCallback(() => {
+    setPreviewZoom(1);
+    setPreviewRotation(0);
+  }, []);
+
+  // Keyboard shortcuts for full-screen mode
+  useEffect(() => {
+    if (!showFullPreview) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      switch (e.key) {
+        case 'Escape':
+          e.preventDefault();
+          setShowFullPreview(false);
+          break;
+        case '=':
+        case '+':
+          e.preventDefault();
+          handleZoomIn();
+          break;
+        case '-':
+          e.preventDefault();
+          handleZoomOut();
+          break;
+        case 'r':
+        case 'R':
+          e.preventDefault();
+          handleRotate();
+          break;
+        case '0':
+          e.preventDefault();
+          resetView();
+          break;
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [showFullPreview, handleZoomIn, handleZoomOut, handleRotate, resetView]);
+
+  // Cleanup preview when component unmounts
+  useEffect(() => {
+    return () => {
+      if (imagePreview) {
+        // Clean up blob URLs if any
+        if (imagePreview.startsWith('blob:')) {
+          URL.revokeObjectURL(imagePreview);
+        }
+      }
+    };
+  }, [imagePreview]);
 
 
   return (
@@ -345,83 +447,217 @@ export function FileUploadArea() {
               transition={{ duration: 0.4, ease: "easeOut" }}
               className="space-y-6"
             >
-              {/* File preview card */}
+              {/* Enhanced File preview card with image preview */}
               <motion.div
                 initial={{ scale: 0.95, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 transition={{ delay: 0.1, duration: 0.3 }}
-                className="relative p-6 rounded-xl bg-gradient-to-br from-muted/30 via-muted/20 to-background border border-border/50 shadow-sm hover:shadow-md transition-all duration-300"
+                className="relative rounded-xl bg-gradient-to-br from-muted/30 via-muted/20 to-background border border-border/50 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden"
               >
-                {/* Success indicator */}
-                <div className="absolute top-4 right-4">
-                  <motion.div
-                    initial={{ scale: 0, rotate: -180 }}
-                    animate={{ scale: 1, rotate: 0 }}
-                    transition={{ delay: 0.3, type: "spring", stiffness: 200 }}
-                    className="p-1.5 rounded-full bg-green-100 dark:bg-white-900/30"
-                  >
-                    <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
-                  </motion.div>
-                </div>
-
-                <div className="flex items-start gap-4">
-                  {/* Enhanced file icon */}
-                  <motion.div
-                    initial={{ scale: 0, rotate: -90 }}
-                    animate={{ scale: 1, rotate: 0 }}
-                    transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-                    className="p-3 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20"
-                  >
-                    {getFileIcon(currentFile.file_type)}
-                  </motion.div>
-
-                  {/* File details */}
-                  <div className="flex-1 min-w-0 space-y-3">
-                    <div>
-                      <motion.h3
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.25 }}
-                        className="font-semibold text-lg truncate text-foreground"
-                        title={currentFile.name}
-                      >
-                        {currentFile.name}
-                      </motion.h3>
-
-                      <motion.div
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.3 }}
-                        className="flex items-center gap-3 mt-2"
-                      >
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20">
-                          {currentFile.file_type}
-                        </span>
-                        <span className="text-sm text-muted-foreground font-medium">
-                          {formatFileSize(currentFile.size)}
-                        </span>
-                      </motion.div>
-                    </div>
-                  </div>
-                </div>
-
                 {/* Remove button */}
                 <motion.div
                   initial={{ opacity: 0, scale: 0 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: 0.4 }}
-                  className="absolute top-4 left-4"
+                  className="absolute top-4 left-4 z-20"
                 >
                   <Button
                     variant="ghost"
                     size="icon-sm"
                     onClick={clearFile}
-                    className="h-8 w-8 rounded-full bg-background/80 hover:bg-destructive/10 hover:text-destructive border border-border/50 shadow-sm transition-all duration-200"
+                    className="h-8 w-8 rounded-full bg-background/80 hover:bg-destructive/10 hover:text-destructive border border-border/50 shadow-sm transition-all duration-200 backdrop-blur-sm"
                     title="Remove file"
                   >
                     <X className="h-3.5 w-3.5" />
                   </Button>
                 </motion.div>
+
+                {/* Enhanced Image Preview Section */}
+                {imagePreview && currentFile.file_type === 'Image' && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.2, duration: 0.4 }}
+                    className="relative"
+                  >
+                    {/* Adaptive Preview Container */}
+                    <div className="relative w-full bg-gradient-to-br from-muted/50 to-muted/20 rounded-t-xl overflow-hidden">
+                      {/* Dynamic height container that adapts to image aspect ratio */}
+                      <div 
+                        className="relative w-full min-h-[200px] max-h-[400px] sm:min-h-[240px] sm:max-h-[480px] flex items-center justify-center"
+                        style={{
+                          aspectRatio: 'auto',
+                        }}
+                      >
+                        <motion.img
+                          src={imagePreview}
+                          alt={currentFile.name}
+                          className="max-w-full max-h-full object-contain cursor-pointer"
+                          style={{
+                            transform: `scale(${previewZoom}) rotate(${previewRotation}deg)`,
+                            transition: 'transform 0.3s ease-in-out',
+                            width: 'auto',
+                            height: 'auto',
+                          }}
+                          onClick={toggleFullPreview}
+                          onLoad={(e) => {
+                            // Calculate optimal container height based on image aspect ratio
+                            const img = e.target as HTMLImageElement;
+                            const container = img.parentElement;
+                            if (container && img.naturalWidth && img.naturalHeight) {
+                              const aspectRatio = img.naturalWidth / img.naturalHeight;
+                              const containerWidth = container.clientWidth;
+                              const idealHeight = Math.min(
+                                containerWidth / aspectRatio,
+                                window.innerWidth < 640 ? 300 : 400 // Max height based on screen size
+                              );
+                              const finalHeight = Math.max(idealHeight, 200); // Min height
+                              container.style.height = `${finalHeight}px`;
+                            }
+                          }}
+                          whileHover={{ 
+                            scale: previewZoom * 1.02,
+                            transition: { type: "spring", stiffness: 400, damping: 25 }
+                          }}
+                        />
+                        
+                        {/* Loading overlay for large images */}
+                        <motion.div
+                          initial={{ opacity: 1 }}
+                          animate={{ opacity: 0 }}
+                          transition={{ delay: 0.3, duration: 0.3 }}
+                          className="absolute inset-0 flex items-center justify-center bg-muted/20 pointer-events-none"
+                        >
+                          <div className="text-sm text-muted-foreground">Loading preview...</div>
+                        </motion.div>
+                      </div>
+                      
+                      {/* Enhanced Preview Controls Overlay */}
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.5 }}
+                        className="absolute bottom-3 right-3 flex gap-1.5 p-1 rounded-lg bg-background/90 backdrop-blur-md border border-border/50 shadow-lg"
+                      >
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={handleZoomOut}
+                          disabled={previewZoom <= 0.25}
+                          className="h-8 w-8 rounded-md hover:bg-muted/50 transition-colors"
+                          title="Zoom out"
+                        >
+                          <ZoomOut className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={handleZoomIn}
+                          disabled={previewZoom >= 3}
+                          className="h-8 w-8 rounded-md hover:bg-muted/50 transition-colors"
+                          title="Zoom in"
+                        >
+                          <ZoomIn className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={handleRotate}
+                          className="h-8 w-8 rounded-md hover:bg-muted/50 transition-colors"
+                          title="Rotate"
+                        >
+                          <RotateCw className="h-3.5 w-3.5" />
+                        </Button>
+                        <div className="w-px bg-border/50 mx-0.5" />
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={toggleFullPreview}
+                          className="h-8 w-8 rounded-md hover:bg-primary/10 hover:text-primary transition-colors"
+                          title="View full size"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                        </Button>
+                      </motion.div>
+
+                      {/* Enhanced Zoom indicator */}
+                      {previewZoom !== 1 && (
+                        <motion.div
+                          initial={{ opacity: 0, scale: 0.8 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          className="absolute top-3 left-3 px-3 py-1.5 rounded-lg bg-background/90 backdrop-blur-md border border-border/50 shadow-lg"
+                        >
+                          <span className="text-xs font-semibold text-primary">
+                            {Math.round(previewZoom * 100)}%
+                          </span>
+                        </motion.div>
+                      )}
+
+                      {/* Image dimensions info */}
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 0.6 }}
+                        className="absolute top-3 right-3 px-3 py-1.5 rounded-lg bg-background/90 backdrop-blur-md border border-border/50 shadow-lg"
+                      >
+                        <span className="text-xs text-muted-foreground font-medium">
+                          {currentFile.file_type}
+                        </span>
+                      </motion.div>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* File Info Section */}
+                <div className="p-6">
+                  <div className="flex items-start gap-4">
+                    {/* Enhanced file icon (only show if no image preview) */}
+                    {(!imagePreview || currentFile.file_type !== 'Image') && (
+                      <motion.div
+                        initial={{ scale: 0, rotate: -90 }}
+                        animate={{ scale: 1, rotate: 0 }}
+                        transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+                        className="p-3 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20"
+                      >
+                        {getFileIcon(currentFile.file_type)}
+                      </motion.div>
+                    )}
+
+                    {/* File details */}
+                    <div className="flex-1 min-w-0 space-y-3">
+                      <div>
+                        <motion.h3
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: 0.25 }}
+                          className="font-semibold text-lg truncate text-foreground"
+                          title={currentFile.name}
+                        >
+                          {currentFile.name}
+                        </motion.h3>
+
+                        <motion.div
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: 0.3 }}
+                          className="flex items-center gap-3 mt-2"
+                        >
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20">
+                            {currentFile.file_type}
+                          </span>
+                          <span className="text-sm text-muted-foreground font-medium">
+                            {formatFileSize(currentFile.size)}
+                          </span>
+                          {imagePreview && (
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-white-900/30 dark:text-white-400">
+                              Preview Ready
+                            </span>
+                          )}
+                        </motion.div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </motion.div>
 
               {/* Action buttons */}
@@ -444,6 +680,191 @@ export function FileUploadArea() {
           )}
         </AnimatePresence>
       </CardContent>
+
+      {/* Enhanced Full-screen Image Preview Modal */}
+      <AnimatePresence>
+        {showFullPreview && imagePreview && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md"
+            onClick={toggleFullPreview}
+          >
+            {/* Responsive container for the image */}
+            <div className="absolute inset-4 sm:inset-8 flex items-center justify-center">
+              <motion.div
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.8, opacity: 0 }}
+                transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                className="relative w-full h-full flex items-center justify-center overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Adaptive image container */}
+                <div className="relative w-full h-full flex items-center justify-center">
+                  <img
+                    src={imagePreview}
+                    alt={currentFile?.name || 'Preview'}
+                    className="max-w-full max-h-full object-contain select-none"
+                    style={{
+                      transform: `scale(${previewZoom}) rotate(${previewRotation}deg)`,
+                      transition: 'transform 0.3s ease-in-out',
+                      transformOrigin: 'center center',
+                    }}
+                    draggable={false}
+                  />
+                </div>
+
+                {/* Enhanced Modal Controls */}
+                <motion.div
+                  initial={{ opacity: 0, y: -20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                  className="absolute top-4 right-4 flex gap-2 p-2 rounded-xl bg-black/50 backdrop-blur-lg border border-white/10"
+                >
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={handleZoomOut}
+                    disabled={previewZoom <= 0.25}
+                    className="h-10 w-10 rounded-lg bg-white/10 hover:bg-white/20 text-white border-white/20 shadow-lg disabled:opacity-30"
+                    title="Zoom out"
+                  >
+                    <ZoomOut className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={handleZoomIn}
+                    disabled={previewZoom >= 5}
+                    className="h-10 w-10 rounded-lg bg-white/10 hover:bg-white/20 text-white border-white/20 shadow-lg disabled:opacity-30"
+                    title="Zoom in"
+                  >
+                    <ZoomIn className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={handleRotate}
+                    className="h-10 w-10 rounded-lg bg-white/10 hover:bg-white/20 text-white border-white/20 shadow-lg"
+                    title="Rotate"
+                  >
+                    <RotateCw className="h-4 w-4" />
+                  </Button>
+                  <div className="w-px bg-white/20 mx-1" />
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={toggleFullPreview}
+                    className="h-10 w-10 rounded-lg bg-white/10 hover:bg-red-500/20 text-white border-white/20 shadow-lg"
+                    title="Close"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </motion.div>
+
+                {/* Enhanced Image info overlay */}
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                  className="absolute bottom-4 left-4 right-4 flex justify-between items-end gap-4"
+                >
+                  <div className="px-4 py-3 rounded-xl bg-black/50 backdrop-blur-lg border border-white/10 max-w-md">
+                    <h4 className="font-semibold text-sm text-white truncate" title={currentFile?.name}>
+                      {currentFile?.name}
+                    </h4>
+                    <div className="flex items-center gap-3 mt-1">
+                      <span className="text-xs text-white/70">
+                        {currentFile && formatFileSize(currentFile.size)}
+                      </span>
+                      <span className="text-xs text-white/50">•</span>
+                      <span className="text-xs text-white/70">
+                        {Math.round(previewZoom * 100)}% zoom
+                      </span>
+                      {previewRotation !== 0 && (
+                        <>
+                          <span className="text-xs text-white/50">•</span>
+                          <span className="text-xs text-white/70">
+                            {previewRotation}° rotated
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Enhanced action buttons */}
+                  <div className="flex gap-2">
+                    {/* Reset view button */}
+                    {(previewZoom !== 1 || previewRotation !== 0) && (
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={resetView}
+                        className="h-10 w-10 rounded-lg bg-white/10 hover:bg-white/20 text-white border-white/20 shadow-lg"
+                        title="Reset view"
+                      >
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                      </Button>
+                    )}
+                    
+                    {/* Download button */}
+                    {imagePreview && currentFile && (
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const link = document.createElement('a');
+                          link.download = currentFile.name;
+                          link.href = imagePreview;
+                          link.click();
+                        }}
+                        className="h-10 w-10 rounded-lg bg-white/10 hover:bg-white/20 text-white border-white/20 shadow-lg"
+                        title="Download image"
+                      >
+                        <Download className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                </motion.div>
+
+                {/* Zoom level indicator */}
+                {previewZoom !== 1 && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="absolute top-4 left-4 px-4 py-2 rounded-xl bg-black/50 backdrop-blur-lg border border-white/10"
+                  >
+                    <span className="text-sm font-semibold text-white">
+                      {Math.round(previewZoom * 100)}%
+                    </span>
+                  </motion.div>
+                )}
+
+                {/* Keyboard shortcuts hint */}
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 1.5, duration: 3 }}
+                  className="absolute top-1/2 left-4 transform -translate-y-1/2 px-4 py-3 rounded-xl bg-black/40 backdrop-blur-md border border-white/10 text-xs text-white/70"
+                >
+                  <div className="font-medium text-white/90 mb-2">Shortcuts:</div>
+                  <div className="space-y-1">
+                    <div><span className="font-mono text-white/90">ESC</span> Close</div>
+                    <div><span className="font-mono text-white/90">+/-</span> Zoom</div>
+                    <div><span className="font-mono text-white/90">R</span> Rotate</div>
+                    <div><span className="font-mono text-white/90">0</span> Reset</div>
+                  </div>
+                </motion.div>
+              </motion.div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </Card>
   );
 }

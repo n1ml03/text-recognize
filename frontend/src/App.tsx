@@ -13,7 +13,6 @@ function App() {
       const formats = universalFileApi.getSupportedFormats();
       
       console.log('Initializing app in', universalFileApi.isWebEnvironment() ? 'web' : 'desktop', 'environment');
-      console.log('Supported formats:', formats);
       
       setSupportedFormats([...formats.image], [...formats.video]);
       

@@ -14,13 +14,23 @@ MAX_BATCH_SIZE = 50
 SIMILARITY_THRESHOLD = 0.98  # For SSIM video frame comparison
 MIN_OCR_CONFIDENCE = 0.5
 
-# Cache settings
-CACHE_MAX_SIZE = 200
-CACHE_TTL_SECONDS = 3600  # 1 hour
+# Cache settings - optimized for performance
+CACHE_MAX_SIZE = 500  # Increased cache size for better hit rates
+CACHE_TTL_SECONDS = 7200  # 2 hours - longer cache retention
 
-# Preprocessing defaults
+# Performance settings
+MAX_CONCURRENT_REQUESTS = 8  # Maximum concurrent OCR processing
+REQUEST_TIMEOUT_SECONDS = 30  # Timeout for individual requests
+BATCH_PROCESSING_CHUNK_SIZE = 4  # Process batches in chunks
+
+# Preprocessing defaults - optimized
 DEFAULT_IMAGE_DPI = 300
-MIN_IMAGE_WIDTH_FOR_OCR = 600
+MIN_IMAGE_WIDTH_FOR_OCR = 800  # Increased for better OCR accuracy
+MAX_IMAGE_DIMENSION = 4096  # Prevent memory issues with very large images
+
+# Performance monitoring
+SLOW_REQUEST_THRESHOLD = 2.0  # Log requests taking longer than this
+CACHE_CLEANUP_PROBABILITY = 0.01  # 1% chance per request
 
 # OCR model settings
 # Use 'en' for English, 'vi' for Vietnamese, etc.

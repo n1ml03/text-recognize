@@ -26,25 +26,6 @@ export interface GrammarError {
   error_type: 'spelling' | 'grammar' | 'punctuation' | 'style' | 'redundancy' | 'clarity' | 'other';
 }
 
-export interface TesseractBlock {
-  paragraphs?: Array<{
-    lines?: Array<{
-      words?: WordDetail[];
-    }>;
-  }>;
-}
-
-export interface TesseractResult {
-  data: {
-    text: string;
-    confidence: number;
-    blocks?: TesseractBlock[];
-    words?: WordDetail[];
-    lines?: any[];
-    paragraphs?: any[];
-  };
-}
-
 // Streamlined processing result interfaces
 export interface StreamlinedProcessingResult {
   text: string;

@@ -361,7 +361,6 @@ async fn process_small_files_batch(
         .extract_text_from_images_batch(
             file_paths.to_vec(),
             Some(PreprocessingOptions::default()),
-            1, // 1MB max file size for batch processing
         )
         .await
         .map_err(|e| format!("Batch OCR processing failed: {}", e))?;

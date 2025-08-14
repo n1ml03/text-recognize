@@ -16,7 +16,6 @@ pub enum ErrorCode {
     OcrInitialization,
     OcrProcessing,
     ImageLoading,
-    ImagePreprocessing,
     
     // Grammar checking errors
     GrammarService,

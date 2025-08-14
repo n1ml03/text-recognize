@@ -20,16 +20,7 @@ pub async fn process_image_ocr(
         .to_tauri_result()
 }
 
-#[tauri::command]
-pub async fn get_preprocessing_preview(
-    file_path: String,
-    _state: State<'_, OCRState>,
-) -> Result<Vec<String>, String> {
-    // This would return base64 encoded preview images showing different preprocessing steps
-    // For now, return empty vector as placeholder
-    log::info!("Preprocessing preview requested for: {}", file_path);
-    Ok(vec![])
-}
+
 
 #[tauri::command]
 pub async fn validate_image_file(file_path: String) -> Result<bool, String> {

@@ -47,8 +47,6 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          // Separate large libraries into their own chunks
-          'tesseract': ['tesseract.js'],
           'react-vendor': ['react', 'react-dom'],
           'ui-vendor': ['lucide-react', 'framer-motion', 'react-dropzone'],
         },

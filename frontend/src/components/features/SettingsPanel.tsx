@@ -127,18 +127,18 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+        className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"
         onClick={onClose}
       >
         <motion.div
           initial={{ scale: 0.9, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.9, opacity: 0 }}
-          className="bg-background border rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden"
+          className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/90 border border-border rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="border-b bg-gradient-to-r from-primary/5 to-primary/10 p-6">
+          <div className="border-b border-border/50 bg-card/30 p-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-primary/10 rounded-lg">
@@ -167,7 +167,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
 
           <div className="flex h-[calc(90vh-200px)]">
             {/* Sidebar */}
-            <div className="w-64 border-r bg-muted/30 p-4">
+            <div className="w-64 border-r border-border/50 bg-background/50 p-4">
               <nav className="space-y-2">
                 {tabs.map((tab) => {
                   const Icon = tab.icon;
@@ -199,7 +199,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex-1 overflow-y-auto p-6 bg-background/50">
               <AnimatePresence mode="wait">
                 <motion.div
                   key={activeTab}
@@ -241,7 +241,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
           </div>
 
           {/* Footer */}
-          <div className="border-t bg-muted/20 p-4 flex justify-between">
+          <div className="border-t border-border/50 bg-card/30 p-4 flex justify-between">
             <motion.div
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
@@ -302,7 +302,7 @@ function AppearanceSettings({
         </p>
       </div>
 
-      <Card>
+      <Card className="border-border/50 bg-card/50 hover:bg-card/70 transition-colors">
         <CardHeader>
           <CardTitle className="text-lg">Theme Selection</CardTitle>
         </CardHeader>
@@ -343,7 +343,7 @@ function AppearanceSettings({
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="border-border/50 bg-card/50 hover:bg-card/70 transition-colors">
         <CardHeader>
           <CardTitle className="text-lg">Interface Options</CardTitle>
         </CardHeader>
@@ -388,7 +388,7 @@ function PerformanceSettings({ settings, updateSetting }: { settings: any; updat
         </p>
       </div>
 
-      <Card>
+      <Card className="border-border/50 bg-card/50 hover:bg-card/70 transition-colors">
         <CardHeader>
           <CardTitle className="text-lg">System Performance</CardTitle>
         </CardHeader>
@@ -417,7 +417,7 @@ function PerformanceSettings({ settings, updateSetting }: { settings: any; updat
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="border-border/50 bg-card/50 hover:bg-card/70 transition-colors">
         <CardHeader>
           <CardTitle className="text-lg">Processing Limits</CardTitle>
         </CardHeader>
@@ -457,7 +457,7 @@ function OCRSettings({ settings, updateSetting }: { settings: any; updateSetting
         </p>
       </div>
 
-      <Card>
+      <Card className="border-border/50 bg-card/50 hover:bg-card/70 transition-colors">
         <CardHeader>
           <CardTitle className="text-lg">OCR Engine</CardTitle>
         </CardHeader>
@@ -493,7 +493,7 @@ function OCRSettings({ settings, updateSetting }: { settings: any; updateSetting
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="border-border/50 bg-card/50 hover:bg-card/70 transition-colors">
         <CardHeader>
           <CardTitle className="text-lg">Image Processing</CardTitle>
         </CardHeader>
@@ -531,7 +531,7 @@ function PrivacySettings({ settings, updateSetting }: { settings: any; updateSet
         </p>
       </div>
 
-      <Card>
+      <Card className="border-border/50 bg-card/50 hover:bg-card/70 transition-colors">
         <CardHeader>
           <CardTitle className="text-lg">Data Storage</CardTitle>
         </CardHeader>
