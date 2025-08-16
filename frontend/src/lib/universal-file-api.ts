@@ -26,7 +26,7 @@ export type FileType = typeof FILE_TYPES[keyof typeof FILE_TYPES];
 const SUPPORTED_FORMATS = {
   IMAGE: ['png', 'jpg', 'jpeg', 'bmp', 'tiff', 'tif', 'gif', 'webp'] as const,
   VIDEO: ['mp4', 'avi', 'mov', 'mkv', 'wmv', 'flv', 'm4v', '3gp', 'webm', 'ogv'] as const,
-  DOCUMENT: ['docx', 'doc', 'rtf', 'odt', 'txt'] as const,
+  DOCUMENT: [] as const,
   PDF: ['pdf'] as const,
 } as const;
 
@@ -387,10 +387,6 @@ export const universalFileApi = {
           {
             name: 'Videos',
             extensions: [...UniversalFileAPI.getSupportedVideoFormats()],
-          },
-          {
-            name: 'Documents',
-            extensions: [...UniversalFileAPI.getSupportedDocumentFormats()],
           },
           {
             name: 'PDF Files',

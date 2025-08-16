@@ -55,7 +55,7 @@ def initialize_ocr():
             logger.info("Initializing PaddleOCR with optimized settings...")
 
             # Optimized OCR configuration
-            ocr_instance = PaddleOCR(
+            ocr_instance = PaddleOCR(   
                 text_detection_model_name="PP-OCRv5_server_det",
                 text_recognition_model_name="PP-OCRv5_server_rec",
                 use_doc_orientation_classify=False,  # Disable for speed

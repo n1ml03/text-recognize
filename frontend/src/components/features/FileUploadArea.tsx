@@ -52,7 +52,7 @@ export function FileUploadArea() {
 
       if (!isImage && !isVideo && !isDocument && !isPdf) {
         console.log('File extension:', universalFileApi.getFileExtension(fileInput instanceof File ? fileInput.name : fileInput));
-        setError('File format not supported. Please select an image, video, document, or PDF file.');
+        setError('File format not supported. Please select an image, video, or PDF file.');
         return;
       }
 
@@ -119,11 +119,6 @@ export function FileUploadArea() {
       'image/*': ['.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.tif', '.gif', '.webp'],
       'video/*': ['.mp4', '.avi', '.mov', '.mkv', '.wmv', '.flv', '.m4v', '.3gp', '.webm', '.ogv'],
       'application/pdf': ['.pdf'],
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
-      'application/msword': ['.doc'],
-      'application/rtf': ['.rtf'],
-      'application/vnd.oasis.opendocument.text': ['.odt'],
-      'text/plain': ['.txt'],
     } : undefined,
   });
 
@@ -277,7 +272,7 @@ export function FileUploadArea() {
             <div>
               <h2 className="text-lg font-semibold">File Upload</h2>
               <p className="text-xs text-muted-foreground font-normal">
-                Images, videos, documents & PDFs supported
+                Images, videos & PDFs supported
               </p>
             </div>
           </div>
@@ -430,7 +425,7 @@ export function FileUploadArea() {
                     {/* Supported formats hint */}
                     <div className="mt-6 pt-4 border-t border-muted-foreground/10">
                       <p className="text-xs text-muted-foreground">
-                        Supports: JPG, PNG, PDF, DOCX, TXT, MP4, AVI and more
+                        Supports: JPG, PNG, PDF, MP4, AVI and more
                       </p>
                     </div>
                   </motion.div>
@@ -531,52 +526,54 @@ export function FileUploadArea() {
                         </motion.div>
                       </div>
                       
-                      {/* Enhanced Preview Controls Overlay */}
+                      {/* Preview Controls Toolbar (moved below image to avoid overlap) */}
                       <motion.div
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.5 }}
-                        className="absolute bottom-3 right-3 flex gap-1.5 p-1 rounded-lg bg-background/90 backdrop-blur-md border border-border/50 shadow-lg"
+                        transition={{ delay: 0.4 }}
+                        className="flex items-center justify-end gap-1.5 p-1 mt-2"
                       >
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={handleZoomOut}
-                          disabled={previewZoom <= 0.25}
-                          className="h-8 w-8 rounded-md hover:bg-muted/50 transition-colors"
-                          title="Zoom out"
-                        >
-                          <ZoomOut className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={handleZoomIn}
-                          disabled={previewZoom >= 3}
-                          className="h-8 w-8 rounded-md hover:bg-muted/50 transition-colors"
-                          title="Zoom in"
-                        >
-                          <ZoomIn className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={handleRotate}
-                          className="h-8 w-8 rounded-md hover:bg-muted/50 transition-colors"
-                          title="Rotate"
-                        >
-                          <RotateCw className="h-3.5 w-3.5" />
-                        </Button>
-                        <div className="w-px bg-border/50 mx-0.5" />
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={toggleFullPreview}
-                          className="h-8 w-8 rounded-md hover:bg-primary/10 hover:text-primary transition-colors"
-                          title="View full size"
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                        </Button>
+                        <div className="flex gap-1.5 p-1 rounded-lg bg-background/90 backdrop-blur-md border border-border/50 shadow-sm">
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            onClick={handleZoomOut}
+                            disabled={previewZoom <= 0.25}
+                            className="h-8 w-8 rounded-md hover:bg-muted/50 transition-colors"
+                            title="Zoom out"
+                          >
+                            <ZoomOut className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            onClick={handleZoomIn}
+                            disabled={previewZoom >= (showFullPreview ? 5 : 3)}
+                            className="h-8 w-8 rounded-md hover:bg-muted/50 transition-colors"
+                            title="Zoom in"
+                          >
+                            <ZoomIn className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            onClick={handleRotate}
+                            className="h-8 w-8 rounded-md hover:bg-muted/50 transition-colors"
+                            title="Rotate"
+                          >
+                            <RotateCw className="h-3.5 w-3.5" />
+                          </Button>
+                          <div className="w-px bg-border/50 mx-0.5" />
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            onClick={toggleFullPreview}
+                            className="h-8 w-8 rounded-md hover:bg-primary/10 hover:text-primary transition-colors"
+                            title="View full size"
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
                       </motion.div>
 
                       {/* Enhanced Zoom indicator */}

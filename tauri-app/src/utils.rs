@@ -17,9 +17,7 @@ pub mod file_extensions {
             "mp4", "avi", "mov", "mkv", "wmv", "flv", "m4v", "3gp", "webm", "ogv"
         ];
 
-        pub const DOCUMENT_EXTENSIONS: &'static [&'static str] = &[
-            "docx", "doc", "rtf", "odt", "txt"
-        ];
+        pub const DOCUMENT_EXTENSIONS: &'static [&'static str] = &[];
 
         pub const PDF_EXTENSIONS: &'static [&'static str] = &["pdf"];
 

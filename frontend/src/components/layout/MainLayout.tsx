@@ -455,7 +455,7 @@ export function MainLayout() {
                     {currentView === 'history' && 'Export History'}
                   </h2>
                   <p className="text-xs text-muted-foreground -mt-0.5 hidden sm:block">
-                    {currentView === 'main' && 'Process and analyze text from images and documents'}
+                    {currentView === 'main' && 'Process and analyze text from images and PDFs'}
                     {currentView === 'batch' && 'Process multiple files simultaneously'}
                     {currentView === 'history' && 'View and manage exported results'}
                   </p>

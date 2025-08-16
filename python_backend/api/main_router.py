@@ -205,13 +205,17 @@ async def process_batch_ocr(request: BatchOCRRequest):
 # Placeholder for document extraction
 @router.post("/extract/document", response_model=DocumentExtractionResult)
 async def extract_document_text(request: DocumentExtractionRequest):
-    """Extracts text from a document file (PDF, DOCX, TXT, RTF)."""
+    """Extracts text from a document file (PDF only)."""
     if not os.path.exists(request.file_path):
         raise HTTPException(status_code=404, detail="Document file not found")
-    
+
+    _, ext = os.path.splitext(request.file_path)
+    if ext.lower() != ".pdf":
+        raise HTTPException(status_code=400, detail="Only PDF files are supported for document extraction")
+
     result = extract_text_from_document(request.file_path)
-    
+
     if not result.success:
         raise HTTPException(status_code=500, detail=result.error_message)
-    
+
     return result

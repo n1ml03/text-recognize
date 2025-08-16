@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Settings,
@@ -19,7 +19,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import { useUIState, useAppStore } from '@/store/app-store';
+import { useUIState, useAppStore, useOCRState } from '@/store/app-store';
 
 interface SettingsPanelProps {
   onClose: () => void;
@@ -28,6 +28,7 @@ interface SettingsPanelProps {
 export function SettingsPanel({ onClose }: SettingsPanelProps) {
   const { theme, setTheme } = useUIState();
   const { setError } = useAppStore();
+  const { preprocessingOptions, setPreprocessingOptions } = useOCRState();
   const [activeTab, setActiveTab] = useState<'appearance' | 'performance' | 'ocr' | 'privacy'>('appearance');
   const [settings, setSettings] = useState({
     // Appearance
@@ -87,8 +88,51 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
   ];
 
   const updateSetting = (key: string, value: any) => {
-    setSettings(prev => ({ ...prev, [key]: value }));
+    setSettings(prev => {
+      const next = { ...prev, [key]: value };
+      try {
+        // Persist immediately
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('app-settings', JSON.stringify(next));
+        }
+      } catch (e) {
+        console.warn('Failed to persist setting', e);
+      }
+
+      // Apply OCR-related settings immediately to global store
+      if (key === 'autoEnhanceContrast') {
+        setPreprocessingOptions({ ...preprocessingOptions, enhance_contrast: Boolean(value) });
+      }
+      if (key === 'denoiseImages') {
+        setPreprocessingOptions({ ...preprocessingOptions, denoise: Boolean(value) });
+      }
+
+      return next;
+    });
   };
+
+  // Load saved settings on mount
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const saved = localStorage.getItem('app-settings');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          setSettings((prev) => ({ ...prev, ...parsed }));
+          // Sync OCR toggles into store on load
+          if (parsed.autoEnhanceContrast !== undefined) {
+            setPreprocessingOptions({ ...preprocessingOptions, enhance_contrast: Boolean(parsed.autoEnhanceContrast) });
+          }
+          if (parsed.denoiseImages !== undefined) {
+            setPreprocessingOptions({ ...preprocessingOptions, denoise: Boolean(parsed.denoiseImages) });
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load saved settings', e);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSave = () => {
     // Here you would save settings to localStorage or backend
@@ -354,13 +398,6 @@ function AppearanceSettings({
             title="Enable Animations"
             description="Smooth transitions and micro-interactions"
             icon={<Zap className="h-4 w-4" />}
-          />
-          <SettingToggle
-            checked={settings.compactMode}
-            onChange={(checked) => updateSetting('compactMode', checked)}
-            title="Compact Mode"
-            description="Reduce spacing and padding for more content"
-            icon={<Monitor className="h-4 w-4" />}
           />
           <SettingToggle
             checked={settings.showPreviewImages}

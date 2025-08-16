@@ -172,7 +172,7 @@ export function OCRPanel() {
             </motion.div>
             <h3 className="text-lg font-medium mb-2">No File Selected</h3>
             <p className="text-sm text-muted-foreground max-w-sm mx-auto leading-relaxed">
-              Upload an image, document, or video file to extract text using advanced OCR technology
+              Upload an image, video, or PDF file to extract text using advanced OCR technology
             </p>
           </motion.div>
         )}
