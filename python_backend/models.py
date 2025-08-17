@@ -52,29 +52,24 @@ class TextLine(BaseModel):
     confidence: float
     bbox: BoundingBox
     polygon: List[List[int]]  # Polygon coordinates
-    textline_orientation_angle: int = 0
+    textline_orientation_angle: float = 0.0  # OneOCR returns float angles
 
 # --- API Result Models ---
 
 class OCRResult(BaseModel):
-    """Structured result of an OCR operation on a single image."""
+    """Structured result of an OCR operation on a single image using OneOCR."""
     text: str
     confidence: float
     processing_time: float
     word_details: List[WordDetail] = []
-    text_lines: List[TextLine] = []  # Complete text lines from OneOCR
+    text_lines: List[TextLine] = []
     word_count: int = 0
-    line_count: int = 0  # New: Number of text lines detected
+    line_count: int = 0
     file_path: Optional[str] = None
     success: bool = True
     error_message: Optional[str] = None
     metadata: Dict[str, Any] = {}
-    engine_used: Optional[str] = None
-    # Raw OneOCR output fields for compatibility
-    rec_texts: List[str] = []  # Raw recognized texts
-    rec_scores: List[float] = []  # Raw confidence scores
-    rec_polys: List[List[List[int]]] = []  # Raw polygon coordinates
-    detection_polygons: List[List[List[int]]] = []  # Detection polygons
+    engine_used: str = "OneOCR"
 
 class BatchOCRResult(BaseModel):
     """Aggregated result of a batch OCR operation."""

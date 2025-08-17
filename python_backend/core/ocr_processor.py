@@ -1,5 +1,6 @@
 """
-OneOCR processing with image preprocessing and result formatting.
+OneOCR-only processing with image preprocessing and result formatting.
+Simplified to use OneOCR exclusively without legacy compatibility.
 """
 import time
 import hashlib
@@ -70,8 +71,8 @@ def _extract_word_details(oneocr_results: dict) -> tuple[list[WordDetail], float
                 height=int(max_y - min_y)
             )
 
-            # Create polygon for compatibility
-            polygon = [[x1, y1], [x2, y2], [x3, y3], [x4, y4]]
+            # Create polygon coordinates - convert floats to integers
+            polygon = [[int(x1), int(y1)], [int(x2), int(y2)], [int(x3), int(y3)], [int(x4), int(y4)]]
 
             word_details.append(WordDetail(
                 text=word_text,
@@ -88,19 +89,19 @@ def _extract_word_details(oneocr_results: dict) -> tuple[list[WordDetail], float
 def _extract_text_lines(oneocr_results: dict) -> list[TextLine]:
     """Extract text lines from OneOCR results."""
     text_lines = []
-    text_angle = oneocr_results.get('text_angle', 0)
+    text_angle = oneocr_results.get('text_angle', 0.0)  # OneOCR returns float angles
 
     for line_data in oneocr_results.get('lines', []):
         line_text = line_data.get('text', '')
         line_bbox = line_data.get('bounding_rect', {})
 
         if line_text and line_bbox:
-            # Convert line bounding_rect to polygon
+            # Convert line bounding_rect to polygon - convert floats to integers
             polygon = [
-                [line_bbox.get('x1', 0), line_bbox.get('y1', 0)],
-                [line_bbox.get('x2', 0), line_bbox.get('y2', 0)],
-                [line_bbox.get('x3', 0), line_bbox.get('y3', 0)],
-                [line_bbox.get('x4', 0), line_bbox.get('y4', 0)]
+                [int(line_bbox.get('x1', 0)), int(line_bbox.get('y1', 0))],
+                [int(line_bbox.get('x2', 0)), int(line_bbox.get('y2', 0))],
+                [int(line_bbox.get('x3', 0)), int(line_bbox.get('y3', 0))],
+                [int(line_bbox.get('x4', 0)), int(line_bbox.get('y4', 0))]
             ]
 
             # Calculate bounding box
@@ -165,30 +166,23 @@ def perform_ocr_on_image(image_path: str, options: PreprocessingOptions, text_op
                 file_path=image_path, success=True, error_message="No text detected"
             )
 
-        # Extract structured data from OneOCR results efficiently
+        # Extract structured data from OneOCR results
         extracted_text = oneocr_results.get('text', '')
         word_details, total_confidence, word_count = _extract_word_details(oneocr_results)
         text_lines = _extract_text_lines(oneocr_results)
 
-        # Calculate average confidence efficiently
+        # Calculate average confidence
         avg_confidence = total_confidence / word_count if word_count > 0 else 0.0
-
-        # Create legacy format data for compatibility (optimized)
-        lines_data = oneocr_results.get('lines', [])
-        rec_texts = [line.get('text', '') for line in lines_data] if lines_data else []
-        rec_scores = [word.confidence for word in word_details] if word_details else []
-        rec_polys = [word.polygon for word in word_details] if word_details else []
-        detection_polygons = [line.polygon for line in text_lines] if text_lines else []
 
         # Apply text post-processing based on options
         text_options = text_options or TextProcessingOptions()
-        
+
         try:
             if word_details and text_options.use_advanced_processing:
                 logger.debug("Applying advanced text post-processing for improved structure")
                 extracted_text = improve_text_structure(
-                    word_details, 
-                    text_lines, 
+                    word_details,
+                    text_lines,
                     reading_order=text_options.reading_order
                 )
                 logger.debug(f"Post-processed text preview: {extracted_text[:100]}...")
@@ -199,8 +193,7 @@ def perform_ocr_on_image(image_path: str, options: PreprocessingOptions, text_op
             logger.error(f"Text post-processing failed, falling back to simple concatenation: {e}")
             # Fallback to simple concatenation if post-processing fails
             extracted_text = " ".join([word.text for word in word_details])
-        
-        avg_confidence = (total_confidence / word_count) if word_count > 0 else 0.0
+
         processing_time = time.time() - start_time
         line_count = len(text_lines)
 
@@ -213,11 +206,7 @@ def perform_ocr_on_image(image_path: str, options: PreprocessingOptions, text_op
             word_count=word_count,
             line_count=line_count,
             file_path=image_path,
-            metadata={"preprocessing_options": options.model_dump()},
-            rec_texts=rec_texts,
-            rec_scores=rec_scores,
-            rec_polys=rec_polys,
-            detection_polygons=detection_polygons
+            metadata={"preprocessing_options": options.model_dump()}
         )
         
         cache_result(cache_key, result.model_dump())
