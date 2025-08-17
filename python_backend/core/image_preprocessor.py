@@ -5,7 +5,7 @@ Includes deskewing, upscaling, and other enhancement techniques with minimal mem
 import cv2
 import numpy as np
 import logging
-from typing import Tuple, Optional
+from typing import Tuple
 from functools import lru_cache
 
 from models import PreprocessingOptions
@@ -50,7 +50,7 @@ def deskew_image(image: np.ndarray) -> np.ndarray:
     if lines is not None and len(lines) > 0:
         angles = []
         for line in lines[:10]:  # Limit to first 10 lines for speed
-            rho, theta = line[0]
+            _, theta = line[0]  # rho not needed
             angle = (theta - np.pi/2) * 180 / np.pi
             angles.append(angle)
         
@@ -66,7 +66,7 @@ def deskew_image(image: np.ndarray) -> np.ndarray:
     # Rotate using original image dimensions
     (h, w) = image.shape[:2]
     center = (w // 2, h // 2)
-    rotation_matrix = cv2.getRotationMatrix2D(center, angle, 1.0)
+    rotation_matrix = cv2.getRotationMatrix2D(center, float(angle), 1.0)
     
     # Use optimized interpolation
     rotated_image = cv2.warpAffine(image, rotation_matrix, (w, h),
@@ -88,24 +88,26 @@ def upscale_if_needed(image: np.ndarray) -> Tuple[np.ndarray, bool]:
     return image, False
 
 def _analyze_image_quality(img: np.ndarray) -> dict:
-    """Quick analysis of image quality to determine optimal preprocessing."""
+    """Optimized analysis of image quality for OneOCR preprocessing."""
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) if len(img.shape) > 2 else img
     height, width = gray.shape
-    
-    # Calculate image metrics
+
+    # Calculate essential metrics efficiently
     laplacian_var = cv2.Laplacian(gray, cv2.CV_64F).var()  # Sharpness
-    mean_brightness = np.mean(gray)
-    contrast = np.std(gray)
-    
+    contrast = float(np.std(gray.astype(np.float32)))
+
+    # Simple noise detection using gradient magnitude
+    grad_x = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=3)
+    grad_y = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=3)
+    noise_level = np.mean(np.sqrt(grad_x**2 + grad_y**2))
+
     return {
-        'sharpness': laplacian_var,
-        'brightness': mean_brightness,
-        'contrast': contrast,
         'width': width,
         'height': height,
         'is_low_res': width < MIN_IMAGE_WIDTH_FOR_OCR,
         'is_low_contrast': contrast < 30,
-        'is_blurry': laplacian_var < 100
+        'is_blurry': laplacian_var < 100,
+        'is_noisy': noise_level > 50  # High gradient variance indicates noise
     }
 
 def enhanced_preprocess_image(image_path: str, options: PreprocessingOptions) -> np.ndarray:
@@ -169,16 +171,14 @@ def enhanced_preprocess_image(image_path: str, options: PreprocessingOptions) ->
         elif options.threshold_method == "otsu":
             _, gray = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
-        # 7. Apply minimal morphology operations
-        if options.apply_morphology:
+        # 7. Apply minimal morphology operations (OneOCR handles most noise well)
+        if options.apply_morphology and quality_metrics['is_noisy']:
             kernel = _get_morphology_kernel(1)
             gray = cv2.morphologyEx(gray, cv2.MORPH_CLOSE, kernel)
-        
-        # 8. Convert back to BGR for PaddleOCR (minimal operation)
-        if len(gray.shape) == 2:
-            result_img = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
-        else:
-            result_img = gray
+
+        # 8. OneOCR works well with grayscale, no need to convert back to BGR
+        # Return grayscale for better memory efficiency
+        result_img = gray
             
         logger.debug(f"Preprocessing completed with smart optimizations")
         return result_img

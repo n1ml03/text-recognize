@@ -1,5 +1,5 @@
 """
-Main entry point for the high-performance PaddleOCR FastAPI service.
+Main entry point for the high-performance OneOCR FastAPI service.
 Initializes the application, middleware, and API routers.
 """
 import logging
@@ -46,8 +46,8 @@ async def lifespan(app: FastAPI):
 
 # --- FastAPI Application Initialization ---
 app = FastAPI(
-    title="High-Performance PaddleOCR Service",
-    description="An optimized OCR service using FastAPI and PaddleOCR with advanced processing.",
+    title="High-Performance OneOCR Service",
+    description="An optimized OCR service using FastAPI and OneOCR with advanced processing.",
     version="2.0.0",
     lifespan=lifespan
 )

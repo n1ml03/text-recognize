@@ -45,19 +45,19 @@ async def process_video(
         if "multipart/form-data" in content_type:
             # Handle multipart form data
             video_options = VideoProcessingOptions(
-                frame_interval=frame_interval,
-                similarity_threshold=similarity_threshold,
-                min_confidence=min_confidence,
-                max_frames=max_frames
+                frame_interval=frame_interval if frame_interval is not None else 5,
+                similarity_threshold=similarity_threshold if similarity_threshold is not None else 0.98,
+                min_confidence=min_confidence if min_confidence is not None else 0.6,
+                max_frames=max_frames if max_frames is not None else 1000
             )
-            
+
             ocr_options = PreprocessingOptions(
-                enhance_contrast=enhance_contrast,
-                denoise=denoise,
-                threshold_method=threshold_method,
-                apply_morphology=apply_morphology,
-                deskew=deskew,
-                upscale=upscale
+                enhance_contrast=enhance_contrast if enhance_contrast is not None else True,
+                denoise=denoise if denoise is not None else True,
+                threshold_method=threshold_method if threshold_method is not None else "adaptive_gaussian",
+                apply_morphology=apply_morphology if apply_morphology is not None else True,
+                deskew=deskew if deskew is not None else True,
+                upscale=upscale if upscale is not None else True
             )
             
             # Case 1: File upload
@@ -104,7 +104,7 @@ async def process_video(
         # Process the video
         result = process_video_for_ocr(video_path, video_options, ocr_options)
         result.processing_time = time.time() - start_time
-        result.engine_used = "PaddleOCR"
+        result.engine_used = "OneOCR"
         
         if not result.success:
             raise HTTPException(status_code=500, detail=result.error_message)

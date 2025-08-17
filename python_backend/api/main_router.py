@@ -6,9 +6,9 @@ import time
 import logging
 import tempfile
 import asyncio
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Request, Depends
-from typing import Optional, List
+from concurrent.futures import ThreadPoolExecutor
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Request
+from typing import Optional
 import aiofiles
 
 from models import (
@@ -51,17 +51,17 @@ async def process_image(
         if "multipart/form-data" in content_type:
             # Handle multipart form data
             options = PreprocessingOptions(
-                enhance_contrast=enhance_contrast,
-                denoise=denoise,
-                threshold_method=threshold_method,
-                apply_morphology=apply_morphology,
-                deskew=deskew,
-                upscale=upscale
+                enhance_contrast=enhance_contrast if enhance_contrast is not None else True,
+                denoise=denoise if denoise is not None else True,
+                threshold_method=threshold_method if threshold_method is not None else "adaptive_gaussian",
+                apply_morphology=apply_morphology if apply_morphology is not None else True,
+                deskew=deskew if deskew is not None else True,
+                upscale=upscale if upscale is not None else True
             )
-            
+
             text_options = TextProcessingOptions(
-                use_advanced_processing=use_advanced_processing,
-                reading_order=reading_order
+                use_advanced_processing=use_advanced_processing if use_advanced_processing is not None else True,
+                reading_order=reading_order if reading_order is not None else "ltr_ttb"
             )
             
             # Case 1: File upload - optimized async handling
@@ -116,7 +116,7 @@ async def process_image(
             )
         
         result.processing_time = time.time() - start_time
-        result.engine_used = "PaddleOCR"
+        result.engine_used = "OneOCR"
         
         if not result.success:
             raise HTTPException(status_code=500, detail=result.error_message)
@@ -138,22 +138,21 @@ async def process_image(
             except Exception as e:
                 logger.warning(f"Failed to delete temporary file {temp_file.name}: {e}")
 
-async def _process_single_image(file_path: str, options: PreprocessingOptions, text_options: TextProcessingOptions) -> OCRResult:
-    """Process a single image in a thread pool."""
+async def _process_single_image(file_path: str, options: PreprocessingOptions, text_options: TextProcessingOptions, executor: ThreadPoolExecutor) -> OCRResult:
+    """Process a single image using shared thread pool for better efficiency."""
     if not os.path.exists(file_path):
         return OCRResult(
-            text="", confidence=0, processing_time=0, file_path=file_path, 
-            success=False, error_message="File not found", engine_used="PaddleOCR"
+            text="", confidence=0, processing_time=0, file_path=file_path,
+            success=False, error_message="File not found", engine_used="OneOCR"
         )
-    
-    # Run CPU-bound OCR processing in thread pool
+
+    # Run CPU-bound OCR processing in shared thread pool
     loop = asyncio.get_event_loop()
-    with ThreadPoolExecutor(max_workers=4) as executor:
-        result = await loop.run_in_executor(
-            executor, perform_ocr_on_image, file_path, options, text_options
-        )
-    
-    result.engine_used = "PaddleOCR"
+    result = await loop.run_in_executor(
+        executor, perform_ocr_on_image, file_path, options, text_options
+    )
+
+    result.engine_used = "OneOCR"
     return result
 
 @router.post("/ocr/batch", response_model=BatchOCRResult)
@@ -163,17 +162,19 @@ async def process_batch_ocr(request: BatchOCRRequest):
     options = request.preprocessing_options or PreprocessingOptions()
     text_options = request.text_processing_options or TextProcessingOptions()
     
-    # Process images concurrently with limited concurrency
-    max_concurrent = min(8, len(request.file_paths))  # Limit to prevent resource exhaustion
+    # Process images concurrently with optimized resource management
+    max_concurrent = min(6, len(request.file_paths))  # Reduced for better stability
     semaphore = asyncio.Semaphore(max_concurrent)
-    
-    async def process_with_semaphore(file_path: str) -> OCRResult:
-        async with semaphore:
-            return await _process_single_image(file_path, options, text_options)
-    
-    # Execute all tasks concurrently
-    tasks = [process_with_semaphore(file_path) for file_path in request.file_paths]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    # Use shared thread pool for better resource efficiency
+    with ThreadPoolExecutor(max_workers=max_concurrent) as executor:
+        async def process_with_semaphore(file_path: str) -> OCRResult:
+            async with semaphore:
+                return await _process_single_image(file_path, options, text_options, executor)
+
+        # Execute all tasks concurrently
+        tasks = [process_with_semaphore(file_path) for file_path in request.file_paths]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
     
     # Handle any exceptions that occurred during processing
     processed_results = []
@@ -181,9 +182,9 @@ async def process_batch_ocr(request: BatchOCRRequest):
         if isinstance(result, Exception):
             logger.error(f"Error processing {request.file_paths[i]}: {result}")
             processed_results.append(OCRResult(
-                text="", confidence=0, processing_time=0, 
-                file_path=request.file_paths[i], 
-                success=False, error_message=str(result), engine_used="PaddleOCR"
+                text="", confidence=0, processing_time=0,
+                file_path=request.file_paths[i],
+                success=False, error_message=str(result), engine_used="OneOCR"
             ))
         else:
             processed_results.append(result)

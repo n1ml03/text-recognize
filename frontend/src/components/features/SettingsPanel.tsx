@@ -506,7 +506,7 @@ function OCRSettings({ settings, updateSetting }: { settings: any; updateSetting
               onChange={(e) => updateSetting('ocrEngine', e.target.value)}
               className="w-full p-3 border rounded-lg bg-background"
             >
-              <option value="paddleocr">PaddleOCR</option>
+              <option value="oneocr">OneOCR</option>
             </select>
             <p className="text-xs text-muted-foreground mt-2">
               Auto mode selects the best engine for each file type

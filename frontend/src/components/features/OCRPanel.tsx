@@ -63,7 +63,7 @@ export function OCRPanel() {
       console.error('Text extraction failed:', error);
       let errorMessage = error instanceof Error ? error.message : 'Text extraction failed';
       if (isWebEnvironment) {
-        errorMessage += '\n\nNote: Web version uses PaddleOCR backend via HTTP for enhanced accuracy.';
+        errorMessage += '\n\nNote: Web version uses OneOCR backend via HTTP for enhanced accuracy.';
       }
       setError(errorMessage);
     } finally {
@@ -86,7 +86,7 @@ export function OCRPanel() {
             <div>
               <h2 className="text-lg font-semibold">Text Extraction</h2>
               <p className="text-xs text-muted-foreground font-normal">
-                Process OCR with PaddleOCR
+                Process OCR with OneOCR
               </p>
             </div>
           </div>
@@ -323,7 +323,7 @@ export function OCRPanel() {
                   className="text-center space-y-2"
                 >
                   <p className="text-xs text-muted-foreground">
-                    Using advanced PaddleOCR technology for optimal accuracy
+                    Using advanced OneOCR technology for optimal accuracy
                   </p>
                 </motion.div>
 

@@ -1,6 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
 """
-PyInstaller spec file for PaddleOCR Service
+PyInstaller spec file for OneOCR Service
 Creates a standalone executable with all dependencies bundled
 """
 
@@ -15,11 +15,9 @@ main_script = spec_dir / 'main.py'
 # Define data files and hidden imports
 block_cipher = None
 
-# Hidden imports required for PaddleOCR and dependencies
+# Hidden imports required for OneOCR and dependencies
 hidden_imports = [
-    'paddleocr',
-    'paddle',
-    'paddlepaddle',
+    'oneocr',
     'cv2',
     'numpy',
     'PIL',
@@ -92,26 +90,25 @@ hidden_imports = [
 # Data files to include
 datas = []
 
-# Try to find PaddleOCR model files and include them
+# Try to find OneOCR model files and include them
 try:
-    import paddleocr
-    paddle_dir = Path(paddleocr.__file__).parent
-    
-    # Include PaddleOCR models and resources
+    import oneocr
+    oneocr_dir = Path(oneocr.__file__).parent
+
+    # Include OneOCR models and resources if any
     model_dirs = [
         'models',
-        'ppocr',
-        'ppstructure',
-        'tools',
+        'data',
+        'resources',
     ]
-    
+
     for model_dir in model_dirs:
-        model_path = paddle_dir / model_dir
+        model_path = oneocr_dir / model_dir
         if model_path.exists():
-            datas.append((str(model_path), f'paddleocr/{model_dir}'))
-            
+            datas.append((str(model_path), f'oneocr/{model_dir}'))
+
 except ImportError:
-    print("Warning: PaddleOCR not found, models may not be included")
+    print("Warning: OneOCR not found, models may not be included")
 
 # Include OpenCV data files
 try:
@@ -174,7 +171,7 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name='paddleocr_service',
+    name='oneocr_service',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -194,12 +191,12 @@ exe = EXE(
 if sys.platform == 'darwin':
     app = BUNDLE(
         exe,
-        name='PaddleOCR Service.app',
+        name='OneOCR Service.app',
         icon=None,
-        bundle_identifier='com.paddleocr.service',
+        bundle_identifier='com.oneocr.service',
         info_plist={
-            'CFBundleName': 'PaddleOCR Service',
-            'CFBundleDisplayName': 'PaddleOCR Service',
+            'CFBundleName': 'OneOCR Service',
+            'CFBundleDisplayName': 'OneOCR Service',
             'CFBundleVersion': '1.0.0',
             'CFBundleShortVersionString': '1.0.0',
             'NSHighResolutionCapable': True,

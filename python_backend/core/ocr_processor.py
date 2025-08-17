@@ -1,11 +1,11 @@
 """
-Core OCR processing logic that uses the initialized PaddleOCR instance
-and the image preprocessing pipeline.
+OneOCR processing with image preprocessing and result formatting.
 """
 import time
 import hashlib
 import logging
-from typing import cast
+import cv2
+from PIL import Image
 
 from models import PreprocessingOptions, TextProcessingOptions, OCRResult, BoundingBox, WordDetail, TextLine
 from .ocr_instance import get_ocr_instance
@@ -17,132 +17,169 @@ from config import MIN_OCR_CONFIDENCE
 
 logger = logging.getLogger(__name__)
 
+def _convert_to_pil_image(processed_image) -> Image.Image:
+    """Convert processed image to PIL Image format with memory optimization."""
+    if isinstance(processed_image, str):
+        # Direct file path - let PIL handle it efficiently
+        return Image.open(processed_image)
+    else:
+        # Convert numpy array to PIL with minimal memory overhead
+        if len(processed_image.shape) == 3 and processed_image.shape[2] == 3:
+            # BGR to RGB conversion
+            rgb_image = cv2.cvtColor(processed_image, cv2.COLOR_BGR2RGB)
+        else:
+            # Grayscale or already RGB
+            rgb_image = processed_image
+        return Image.fromarray(rgb_image)
+
+def _extract_word_details(oneocr_results: dict) -> tuple[list[WordDetail], float, int]:
+    """Extract word details from OneOCR results with optimized processing."""
+    word_details = []
+    total_confidence = 0.0
+    word_count = 0
+
+    # Pre-allocate lists for better performance
+    lines = oneocr_results.get('lines', [])
+    if not lines:
+        return word_details, 0.0, 0
+
+    for line_data in lines:
+        words = line_data.get('words', [])
+        for word_data in words:
+            word_text = word_data.get('text', '').strip()
+            word_confidence = word_data.get('confidence', 0.0)
+            word_bbox = word_data.get('bounding_rect', {})
+
+            # Skip low-confidence or empty words early
+            if not word_text or word_confidence < MIN_OCR_CONFIDENCE or not word_bbox:
+                continue
+
+            # Extract coordinates efficiently
+            x1, y1 = word_bbox.get('x1', 0), word_bbox.get('y1', 0)
+            x2, y2 = word_bbox.get('x2', 0), word_bbox.get('y2', 0)
+            x3, y3 = word_bbox.get('x3', 0), word_bbox.get('y3', 0)
+            x4, y4 = word_bbox.get('x4', 0), word_bbox.get('y4', 0)
+
+            # Calculate bounding box efficiently
+            min_x, max_x = min(x1, x2, x3, x4), max(x1, x2, x3, x4)
+            min_y, max_y = min(y1, y2, y3, y4), max(y1, y2, y3, y4)
+
+            bbox = BoundingBox(
+                x=int(min_x), y=int(min_y),
+                width=int(max_x - min_x),
+                height=int(max_y - min_y)
+            )
+
+            # Create polygon for compatibility
+            polygon = [[x1, y1], [x2, y2], [x3, y3], [x4, y4]]
+
+            word_details.append(WordDetail(
+                text=word_text,
+                confidence=word_confidence,
+                bbox=bbox,
+                polygon=polygon
+            ))
+
+            total_confidence += word_confidence
+            word_count += 1
+
+    return word_details, total_confidence, word_count
+
+def _extract_text_lines(oneocr_results: dict) -> list[TextLine]:
+    """Extract text lines from OneOCR results."""
+    text_lines = []
+    text_angle = oneocr_results.get('text_angle', 0)
+
+    for line_data in oneocr_results.get('lines', []):
+        line_text = line_data.get('text', '')
+        line_bbox = line_data.get('bounding_rect', {})
+
+        if line_text and line_bbox:
+            # Convert line bounding_rect to polygon
+            polygon = [
+                [line_bbox.get('x1', 0), line_bbox.get('y1', 0)],
+                [line_bbox.get('x2', 0), line_bbox.get('y2', 0)],
+                [line_bbox.get('x3', 0), line_bbox.get('y3', 0)],
+                [line_bbox.get('x4', 0), line_bbox.get('y4', 0)]
+            ]
+
+            # Calculate bounding box
+            x_coords = [p[0] for p in polygon]
+            y_coords = [p[1] for p in polygon]
+            x_min, y_min = int(min(x_coords)), int(min(y_coords))
+            x_max, y_max = int(max(x_coords)), int(max(y_coords))
+
+            bbox = BoundingBox(
+                x=x_min, y=y_min,
+                width=x_max - x_min,
+                height=y_max - y_min
+            )
+
+            # Calculate average confidence for the line
+            words = line_data.get('words', [])
+            line_confidence = sum(w.get('confidence', 0.0) for w in words) / len(words) if words else 0.0
+
+            text_lines.append(TextLine(
+                text=line_text,
+                confidence=line_confidence,
+                bbox=bbox,
+                polygon=polygon,
+                textline_orientation_angle=text_angle
+            ))
+
+    return text_lines
+
 def perform_ocr_on_image(image_path: str, options: PreprocessingOptions, text_options: TextProcessingOptions) -> OCRResult:
-    """
-    Performs OCR on a single image file, applying preprocessing and caching.
-    """
+    """Perform OCR on image using OneOCR with preprocessing and caching."""
     start_time = time.time()
-    
-    # Generate cache key from file content and options
+
+    # Generate cache key
     try:
         with open(image_path, 'rb') as f:
             file_hash = hashlib.blake2b(f.read(), digest_size=16).hexdigest()
     except IOError:
-        return OCRResult(text="", confidence=0, processing_time=0, success=False, error_message="File not found or unreadable.")
+        return OCRResult(
+            text="", confidence=0, processing_time=0,
+            success=False, error_message="File not found or unreadable."
+        )
 
     options_hash = hashlib.blake2b(options.model_dump_json().encode(), digest_size=8).hexdigest()
     cache_key = f"ocr_{file_hash}_{options_hash}"
-    
+
     cached = get_cached_result(cache_key)
     if cached:
         return OCRResult(**cached)
-        
-    try:
-        # Get the OCR instance (will raise RuntimeError if not initialized)
-        ocr_instance = get_ocr_instance()
-        
-        # Apply the full preprocessing pipeline
-        processed_image = enhanced_preprocess_image(image_path, options)
-        
-        # Perform OCR using the new PaddleOCR API
-        paddle_results = ocr_instance.predict(processed_image)
-        
 
-        
-        extracted_text = ""
-        word_details = []
-        text_lines = []
-        total_confidence = 0.0
-        word_count = 0
-        line_count = 0
-        
-        # Initialize raw output fields
-        rec_texts = []
-        rec_scores = []
-        rec_polys = []
-        detection_polygons = []
-        textline_angles = []
-        
-        if paddle_results and len(paddle_results) > 0:
-            result_data = paddle_results[0]  # First page
-            
-            # Convert result to dict to access fields
-            try:
-                result_dict = dict(result_data)
-                
-                # Extract raw PaddleOCR fields from dict
-                rec_texts = result_dict.get('rec_texts', [])
-                raw_scores = result_dict.get('rec_scores', [])
-                rec_scores = [float(score) for score in raw_scores]
-                
-                raw_polys = result_dict.get('rec_polys', [])
-                rec_polys = [poly.tolist() if hasattr(poly, 'tolist') else poly for poly in raw_polys]
-                
-                raw_dt_polys = result_dict.get('dt_polys', [])
-                detection_polygons = [poly.tolist() if hasattr(poly, 'tolist') else poly for poly in raw_dt_polys]
-                
-                # Get textline orientation angles if available
-                textline_angles = result_dict.get('textline_orientation_angles', [])
-                
-                logger.debug(f"Extracted - rec_texts: {rec_texts}")
-                logger.debug(f"Extracted - rec_scores: {rec_scores}")
-                logger.debug(f"Extracted - rec_polys count: {len(rec_polys)}")
-                logger.debug(f"Extracted - dt_polys count: {len(detection_polygons)}")
-                
-            except Exception as e:
-                logger.error(f"Error extracting from result dict: {e}")
-                # Fallback to empty results
-                rec_texts = []
-                rec_scores = []
-                rec_polys = []
-                detection_polygons = []
-                textline_angles = []
-        else:
-            logger.debug(f"No paddle results or empty results: {paddle_results}")
-            
-        # Process recognized texts and scores
-        for i, (text, confidence) in enumerate(zip(rec_texts, rec_scores)):
-            confidence = float(confidence)
-            
-            if confidence >= MIN_OCR_CONFIDENCE and text:
-                # Get polygon coordinates
-                polygon_coords = []
-                if i < len(rec_polys):
-                    polygon = rec_polys[i]
-                    polygon_coords = polygon if isinstance(polygon, list) else []
-                
-                # Convert polygon to BoundingBox
-                if polygon_coords:
-                    x_coords = [p[0] for p in polygon_coords]
-                    y_coords = [p[1] for p in polygon_coords]
-                    x_min, y_min = int(min(x_coords)), int(min(y_coords))
-                    x_max, y_max = int(max(x_coords)), int(max(y_coords))
-                    width, height = x_max - x_min, y_max - y_min
-                    
-                    bbox = BoundingBox(x=x_min, y=y_min, width=width, height=height)
-                    
-                    # Add to word details (keeping backward compatibility)
-                    word_details.append(WordDetail(
-                        text=text,
-                        confidence=confidence,
-                        bbox=bbox,
-                        polygon=polygon_coords
-                    ))
-                    
-                    # Add to text lines (new feature)
-                    orientation_angle = textline_angles[i] if i < len(textline_angles) else 0
-                    text_lines.append(TextLine(
-                        text=text,
-                        confidence=confidence,
-                        bbox=bbox,
-                        polygon=polygon_coords,
-                        textline_orientation_angle=orientation_angle
-                    ))
-                    
-                    total_confidence += confidence
-                    word_count += 1
-                    line_count += 1
-        
+    try:
+        ocr_instance = get_ocr_instance()
+        processed_image = enhanced_preprocess_image(image_path, options)
+        pil_image = _convert_to_pil_image(processed_image)
+
+        # Perform OCR using OneOCR
+        oneocr_results = ocr_instance.recognize_pil(pil_image)
+
+        if not oneocr_results or 'lines' not in oneocr_results:
+            logger.warning("No valid OneOCR results received")
+            return OCRResult(
+                text="", confidence=0, processing_time=time.time() - start_time,
+                file_path=image_path, success=True, error_message="No text detected"
+            )
+
+        # Extract structured data from OneOCR results efficiently
+        extracted_text = oneocr_results.get('text', '')
+        word_details, total_confidence, word_count = _extract_word_details(oneocr_results)
+        text_lines = _extract_text_lines(oneocr_results)
+
+        # Calculate average confidence efficiently
+        avg_confidence = total_confidence / word_count if word_count > 0 else 0.0
+
+        # Create legacy format data for compatibility (optimized)
+        lines_data = oneocr_results.get('lines', [])
+        rec_texts = [line.get('text', '') for line in lines_data] if lines_data else []
+        rec_scores = [word.confidence for word in word_details] if word_details else []
+        rec_polys = [word.polygon for word in word_details] if word_details else []
+        detection_polygons = [line.polygon for line in text_lines] if text_lines else []
+
         # Apply text post-processing based on options
         text_options = text_options or TextProcessingOptions()
         
@@ -165,7 +202,8 @@ def perform_ocr_on_image(image_path: str, options: PreprocessingOptions, text_op
         
         avg_confidence = (total_confidence / word_count) if word_count > 0 else 0.0
         processing_time = time.time() - start_time
-        
+        line_count = len(text_lines)
+
         result = OCRResult(
             text=extracted_text.strip(),
             confidence=avg_confidence,

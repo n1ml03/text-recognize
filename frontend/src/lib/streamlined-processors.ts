@@ -68,36 +68,22 @@ const OCR_CONFIG = {
   READING_SPEED_WPM: 200, // Words per minute for reading time calculation
 } as const;
 
-// Unified PaddleOCR processor (for both web and desktop via Python backend)
+// Unified OneOCR processor (for both web and desktop via Python backend)
 export class StreamlinedWebOCR {
   private static isInitialized = false;
-  private static initializationPromise: Promise<void> | null = null;
 
   static async initialize(): Promise<void> {
-    // Prevent multiple simultaneous initializations
-    if (this.initializationPromise) {
-      return this.initializationPromise;
-    }
+    if (this.isInitialized) return;
 
-    if (this.isInitialized) {
-      return;
-    }
-
-    this.initializationPromise = this.performInitialization();
-    return this.initializationPromise;
-  }
-
-  private static async performInitialization(): Promise<void> {
-    // Both web and desktop environments use unified Python backend via HTTP
     await this.checkBackendAvailability();
     this.isInitialized = true;
-    console.log('Unified OCR processor initialized (using Python PaddleOCR backend)');
+    console.log('OneOCR processor initialized');
   }
 
   private static async checkBackendAvailability(): Promise<void> {
     try {
-      const backendUrl = this.getPaddleOCRBackendUrl();
-      console.log(`Checking PaddleOCR backend availability at: ${backendUrl}`);
+      const backendUrl = this.getOneOCRBackendUrl();
+      console.log(`Checking OneOCR backend availability at: ${backendUrl}`);
 
       const response = await fetch(`${backendUrl}/health`, {
         method: 'GET',
@@ -111,9 +97,9 @@ export class StreamlinedWebOCR {
       }
 
       const healthData = await response.json();
-      console.log('PaddleOCR backend is available:', healthData);
+      console.log('OneOCR backend is available:', healthData);
     } catch (error) {
-      console.warn('PaddleOCR backend availability check failed:', error);
+      console.warn('OneOCR backend availability check failed:', error);
       // Don't throw error here - we'll handle it during actual processing
       // This allows the app to start even if backend is temporarily unavailable
     }
@@ -121,165 +107,107 @@ export class StreamlinedWebOCR {
 
   static async processFile(file: File): Promise<StreamlinedProcessingResult> {
     const startTime = Date.now();
-    console.log('Starting PaddleOCR processing for file:', file.name, 'Size:', file.size, 'Type:', file.type);
 
-    try {
-      // Validate file size
-      if (file.size > OCR_CONFIG.MAX_FILE_SIZE) {
-        throw new Error(`File size (${Math.round(file.size / 1024 / 1024)}MB) exceeds maximum allowed size (${OCR_CONFIG.MAX_FILE_SIZE / 1024 / 1024}MB)`);
-      }
-
-      // Handle direct text extraction for text files
-      if (file.name.endsWith('.txt') || file.type === 'text/plain') {
-        console.log('Processing as text file');
-        const text = await file.text();
-        return {
-          text,
-          engine_used: 'Direct Text Extraction',
-          processing_time: Date.now() - startTime,
-          confidence: 1.0,
-          word_details: this.generateWordDetailsFromText(text),
-        };
-      }
-
-      console.log('Initializing unified PaddleOCR backend...');
-      await this.initialize();
-
-      // Always use HTTP request to unified Python backend for both web and desktop
-      console.log('Using HTTP request to unified Python backend');
-      return await this.processFileViaHTTP(file, startTime);
-
-    } catch (error) {
-      console.error('OCR processing failed:', error);
-      throw new Error(`OCR processing failed: ${error instanceof Error ? error.message : 'PaddleOCR backend not available'}`);
+    // Validate file size
+    if (file.size > OCR_CONFIG.MAX_FILE_SIZE) {
+      throw new Error(`File size exceeds maximum allowed size`);
     }
+
+    // Handle text files directly
+    if (file.type === 'text/plain') {
+      const text = await file.text();
+      return {
+        text,
+        engine_used: 'Text File Reader',
+        processing_time: Date.now() - startTime,
+        confidence: 1.0,
+        word_details: this.generateWordDetailsFromText(text),
+      };
+    }
+
+    await this.initialize();
+    return await this.processFileViaHTTP(file, startTime);
   }
 
   private static async processFileViaHTTP(file: File, startTime: number): Promise<StreamlinedProcessingResult> {
-    try {
-      // Default PaddleOCR backend URL (can be configured)
-      const backendUrl = this.getPaddleOCRBackendUrl();
+    const backendUrl = this.getOneOCRBackendUrl();
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('enhance_contrast', 'true');
+    formData.append('denoise', 'true');
+    formData.append('threshold_method', 'adaptive_gaussian');
+    formData.append('apply_morphology', 'true');
+    formData.append('deskew', 'true');
+    formData.append('upscale', 'true');
 
-      // Create form data for file upload to unified endpoint
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('enhance_contrast', 'true');
-      formData.append('denoise', 'true');
-      formData.append('threshold_method', 'adaptive_gaussian');
-      formData.append('apply_morphology', 'true');
-      formData.append('deskew', 'true');
-      formData.append('upscale', 'true');
+    const response = await fetch(`${backendUrl}/ocr/image`, {
+      method: 'POST',
+      body: formData,
+    });
 
-      console.log(`Making HTTP request to unified PaddleOCR backend: ${backendUrl}/ocr/image`);
-
-      // Make HTTP request to unified PaddleOCR backend endpoint
-      const response = await fetch(`${backendUrl}/ocr/image`, {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`PaddleOCR backend error (${response.status}): ${errorText}`);
-      }
-
-      const result = await response.json();
-
-      // Convert Python backend response to StreamlinedProcessingResult format
-      return {
-        text: result.text || '',
-        engine_used: result.engine_used || 'PaddleOCR',
-        processing_time: Date.now() - startTime,
-        confidence: result.confidence || 0,
-        word_details: this.convertWordDetails(result.word_details || []),
-      };
-
-    } catch (error) {
-      console.error('HTTP request to unified PaddleOCR backend failed:', error);
-
-      if (error instanceof TypeError && error.message.includes('fetch')) {
-        throw new Error(`Cannot connect to PaddleOCR backend at ${this.getPaddleOCRBackendUrl()}.
-
-Please ensure the Python backend service is running:
-1. Navigate to the python_backend directory
-2. Run: python main.py --host 0.0.0.0 --port 8000
-3. Or use the startup scripts: ./start_backend.sh
-
-The backend should be accessible at http://localhost:8000/health
-
-Note: Both web and desktop versions now use the unified Python backend.`);
-      }
-
-      throw error;
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`OneOCR backend error (${response.status}): ${errorText}`);
     }
+
+    const result = await response.json();
+    return {
+      text: result.text || '',
+      engine_used: result.engine_used || 'OneOCR',
+      processing_time: Date.now() - startTime,
+      confidence: result.confidence || 0,
+      word_details: this.convertWordDetails(result.word_details || []),
+    };
   }
 
-  private static getPaddleOCRBackendUrl(): string {
-    // Check for environment variable or localStorage setting
+  private static getOneOCRBackendUrl(): string {
     if (typeof window !== 'undefined') {
-      const storedUrl = localStorage.getItem('paddleocr_backend_url');
-      if (storedUrl) {
-        return storedUrl;
-      }
+      const storedUrl = localStorage.getItem('oneocr_backend_url');
+      if (storedUrl) return storedUrl;
     }
 
-    // Check for environment variable (Vite)
-    if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_PADDLEOCR_BACKEND_URL) {
-      return import.meta.env.VITE_PADDLEOCR_BACKEND_URL;
+    if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_ONEOCR_BACKEND_URL) {
+      return import.meta.env.VITE_ONEOCR_BACKEND_URL;
     }
 
-    // Default URLs to try
-    const defaultUrls = [
-      'http://localhost:8000',
-      'http://127.0.0.1:8000',
-      'http://0.0.0.0:8000'
-    ];
-
-    return defaultUrls[0];
+    return 'http://localhost:8000';
   }
 
-  // Allow users to configure the backend URL
   static setBackendUrl(url: string): void {
     if (typeof window !== 'undefined') {
-      localStorage.setItem('paddleocr_backend_url', url);
-      console.log(`PaddleOCR backend URL set to: ${url}`);
+      localStorage.setItem('oneocr_backend_url', url);
     }
   }
 
   static getBackendUrl(): string {
-    return this.getPaddleOCRBackendUrl();
+    return this.getOneOCRBackendUrl();
   }
 
-  // Test connection to PaddleOCR backend
   static async testBackendConnection(): Promise<{ success: boolean; message: string; data?: any }> {
     try {
-      const backendUrl = this.getPaddleOCRBackendUrl();
-      console.log(`Testing connection to PaddleOCR backend: ${backendUrl}`);
-
+      const backendUrl = this.getOneOCRBackendUrl();
       const response = await fetch(`${backendUrl}/health`, {
         method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-        },
+        headers: { 'Accept': 'application/json' },
       });
 
       if (!response.ok) {
         return {
           success: false,
-          message: `Backend responded with status ${response.status}: ${response.statusText}`
+          message: `Backend responded with status ${response.status}`
         };
       }
 
       const data = await response.json();
       return {
         success: true,
-        message: 'Successfully connected to PaddleOCR backend',
+        message: 'Successfully connected to OneOCR backend',
         data
       };
     } catch (error) {
       return {
         success: false,
-        message: `Failed to connect to PaddleOCR backend: ${error instanceof Error ? error.message : 'Unknown error'}`
+        message: `Failed to connect to OneOCR backend: ${error instanceof Error ? error.message : 'Unknown error'}`
       };
     }
   }
@@ -313,10 +241,8 @@ Note: Both web and desktop versions now use the unified Python backend.`);
 
   static async cleanup(): Promise<void> {
     try {
-      // No cleanup needed for PaddleOCR backend
       this.isInitialized = false;
-      this.initializationPromise = null;
-      console.log('PaddleOCR web processor cleaned up');
+      console.log('OneOCR web processor cleaned up');
     } catch (error) {
       console.error('Error during cleanup:', error);
     }
@@ -760,7 +686,7 @@ export const streamlinedProcessor = {
     };
   },
 
-  // Utility methods for PaddleOCR backend management
+  // Utility methods for OneOCR backend management
   testBackendConnection: StreamlinedWebOCR.testBackendConnection.bind(StreamlinedWebOCR),
   setBackendUrl: StreamlinedWebOCR.setBackendUrl.bind(StreamlinedWebOCR),
   getBackendUrl: StreamlinedWebOCR.getBackendUrl.bind(StreamlinedWebOCR),
@@ -768,7 +694,7 @@ export const streamlinedProcessor = {
 
 // Make utilities available globally for debugging
 if (typeof window !== 'undefined') {
-  (window as any).paddleOCRUtils = {
+  (window as any).oneOCRUtils = {
     testConnection: StreamlinedWebOCR.testBackendConnection.bind(StreamlinedWebOCR),
     setBackendUrl: StreamlinedWebOCR.setBackendUrl.bind(StreamlinedWebOCR),
     getBackendUrl: StreamlinedWebOCR.getBackendUrl.bind(StreamlinedWebOCR),

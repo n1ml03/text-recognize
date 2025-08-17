@@ -1,5 +1,5 @@
 """
-Configuration constants for the PaddleOCR service
+Configuration constants for the OneOCR service
 """
 # Supported file formats
 SUPPORTED_IMAGE_FORMATS = ['.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.webp']
@@ -32,9 +32,8 @@ MAX_IMAGE_DIMENSION = 4096  # Prevent memory issues with very large images
 SLOW_REQUEST_THRESHOLD = 2.0  # Log requests taking longer than this
 CACHE_CLEANUP_PROBABILITY = 0.01  # 1% chance per request
 
-# OCR model settings
-# Use 'en' for English, 'vi' for Vietnamese, etc.
-# PaddleOCR will automatically download the corresponding server models.
+# OneOCR settings
+# OneOCR automatically handles multiple languages and doesn't require model downloads
 
 # Text post-processing configuration
 USE_ADVANCED_TEXT_PROCESSING = True  # Enable advanced text structure processing

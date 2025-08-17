@@ -44,7 +44,7 @@ class WordDetail(BaseModel):
     text: str
     confidence: float
     bbox: BoundingBox
-    polygon: List[List[int]] = []  # Raw polygon coordinates from PaddleOCR
+    polygon: List[List[int]] = []  # Raw polygon coordinates from OneOCR
 
 class TextLine(BaseModel):
     """Represents a complete text line detected by OCR."""
@@ -62,7 +62,7 @@ class OCRResult(BaseModel):
     confidence: float
     processing_time: float
     word_details: List[WordDetail] = []
-    text_lines: List[TextLine] = []  # New: Complete text lines from PaddleOCR
+    text_lines: List[TextLine] = []  # Complete text lines from OneOCR
     word_count: int = 0
     line_count: int = 0  # New: Number of text lines detected
     file_path: Optional[str] = None
@@ -70,11 +70,11 @@ class OCRResult(BaseModel):
     error_message: Optional[str] = None
     metadata: Dict[str, Any] = {}
     engine_used: Optional[str] = None
-    # Raw PaddleOCR output fields
+    # Raw OneOCR output fields for compatibility
     rec_texts: List[str] = []  # Raw recognized texts
-    rec_scores: List[float] = []  # Raw confidence scores  
+    rec_scores: List[float] = []  # Raw confidence scores
     rec_polys: List[List[List[int]]] = []  # Raw polygon coordinates
-    detection_polygons: List[List[List[int]]] = []  # Detection polygons (dt_polys)
+    detection_polygons: List[List[List[int]]] = []  # Detection polygons
 
 class BatchOCRResult(BaseModel):
     """Aggregated result of a batch OCR operation."""

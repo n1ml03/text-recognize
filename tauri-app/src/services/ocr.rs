@@ -68,19 +68,21 @@ pub struct OCRService {
 
 impl OCRService {
     pub fn new() -> AppResult<Self> {
-        log::info!("Initializing OCR Service with PaddleOCR backend");
+        log::info!("Initializing OCR Service with OneOCR backend");
 
         let http_client = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(300)) // 5 minute timeout for large files
-            .http2_prior_knowledge() // Enable HTTP/2
+            .timeout(std::time::Duration::from_secs(180)) // Reduced timeout for better responsiveness
+            .connect_timeout(std::time::Duration::from_secs(10)) // Connection timeout
+            .http2_prior_knowledge() // Enable HTTP/2 for better performance
             .http2_keep_alive_interval(Some(std::time::Duration::from_secs(30)))
             .http2_keep_alive_timeout(std::time::Duration::from_secs(10))
             .http2_keep_alive_while_idle(true)
-            .pool_idle_timeout(Some(std::time::Duration::from_secs(90)))
-            .pool_max_idle_per_host(10)
-            .gzip(true) // Enable automatic gzip decompression
-            .brotli(true) // Enable automatic brotli decompression
-            .deflate(true) // Enable automatic deflate decompression
+            .pool_idle_timeout(Some(std::time::Duration::from_secs(60))) // Reduced idle timeout
+            .pool_max_idle_per_host(8) // Optimized connection pool
+            .tcp_nodelay(true) // Disable Nagle's algorithm for lower latency
+            .gzip(true) // Enable automatic compression
+            .brotli(true)
+            .deflate(true)
             .build()
             .map_err(|e| AppError::with_details(
                 ErrorCode::OcrInitialization,
@@ -139,16 +141,18 @@ impl OCRService {
             ));
         }
 
-        // Create multipart form with file path (more efficient than uploading entire file)
+        // Create optimized multipart form with file path (avoids file upload overhead)
         let opts = options.unwrap_or_default();
         let form = reqwest::multipart::Form::new()
             .text("file_path", image_path.to_string())
             .text("enhance_contrast", opts.enhance_contrast.to_string())
             .text("denoise", opts.denoise.to_string())
-            .text("threshold_method", opts.threshold_method.clone())
+            .text("threshold_method", opts.threshold_method)
             .text("apply_morphology", opts.apply_morphology.to_string())
             .text("deskew", "true")
-            .text("upscale", "true");
+            .text("upscale", "true")
+            .text("use_advanced_processing", "true")
+            .text("reading_order", "ltr_ttb");
 
         // Make request to Python service using multipart form
         let response = self.http_client
@@ -252,7 +256,7 @@ impl OCRService {
         let ocr_result = OCRResult {
             text: video_result["text"].as_str().unwrap_or("").to_string(),
             confidence: video_result["confidence"].as_f64().unwrap_or(0.0) as f32,
-            engine_used: "PaddleOCR".to_string(),
+            engine_used: "OneOCR".to_string(),
             processing_time: video_result["processing_time"].as_f64().unwrap_or(0.0),
             word_details: vec![], // Video processing doesn't provide word details
         };
@@ -273,10 +277,14 @@ impl OCRService {
         // Ensure Python service is running
         self.ensure_python_service_running().await?;
 
-        // Prepare batch request
+        // Prepare optimized batch request (avoid unnecessary clone)
         let batch_request = serde_json::json!({
-            "file_paths": file_paths.clone(),
-            "preprocessing_options": options
+            "file_paths": file_paths,
+            "preprocessing_options": options,
+            "text_processing_options": {
+                "use_advanced_processing": true,
+                "reading_order": "ltr_ttb"
+            }
         });
 
         // Make request to Python service
@@ -319,25 +327,25 @@ impl OCRService {
 
         let mut process_guard = self.process_handle.lock().await;
         if let Some(mut child) = process_guard.take() {
-            log::info!("Terminating PaddleOCR process...");
+            log::info!("Terminating OneOCR process...");
 
             // Try to terminate gracefully first
             match child.kill().await {
                 Ok(_) => {
-                    log::info!("PaddleOCR process terminated successfully");
+                    log::info!("OneOCR process terminated successfully");
                 }
                 Err(e) => {
-                    log::warn!("Failed to terminate PaddleOCR process: {}", e);
+                    log::warn!("Failed to terminate OneOCR process: {}", e);
                 }
             }
 
             // Wait for the process to exit
             match child.wait().await {
                 Ok(status) => {
-                    log::info!("PaddleOCR process exited with status: {}", status);
+                    log::info!("OneOCR process exited with status: {}", status);
                 }
                 Err(e) => {
-                    log::warn!("Error waiting for PaddleOCR process to exit: {}", e);
+                    log::warn!("Error waiting for OneOCR process to exit: {}", e);
                 }
             }
         }
